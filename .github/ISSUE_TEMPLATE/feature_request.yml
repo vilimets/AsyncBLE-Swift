@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose something new for the library
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        AsyncBLE has a deliberately fixed scope. Peripheral role, Classic Bluetooth, and
+        Objective-C compatibility are permanently out of scope. Check the README before filing.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you unable to do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: Sketch the call site you would want to write.
+      render: swift
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current workaround
+      description: Does `Connection.raw` cover this in the meantime?
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This is not in the permanently out-of-scope list in the README
+          required: true

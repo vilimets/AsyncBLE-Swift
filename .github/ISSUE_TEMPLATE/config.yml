@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Scope contract
+    url: https://github.com/vilimets/AsyncBLE-Swift#in-scope-010
+    about: Check what ships in 0.1.0 and what is permanently out of scope before filing.

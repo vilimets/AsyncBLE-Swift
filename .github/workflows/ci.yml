@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SCHEME: AsyncBLE
+
+jobs:
+  build-test:
+    name: Build & test (iOS Simulator)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      # Simulator names drift between runner images, so pick whatever iPhone is installed.
+      - name: Pick a simulator
+        run: |
+          name=$(xcrun simctl list devices available \
+            | grep -o 'iPhone [^(]*' | sed 's/ *$//' | tail -1)
+          echo "Using: $name"
+          echo "DESTINATION=platform=iOS Simulator,name=$name" >> "$GITHUB_ENV"
+
+      - name: Resolve dependencies
+        run: xcodebuild -resolvePackageDependencies -scheme "$SCHEME"
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION"
+
+      - name: Test
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION"
+
+  lint:
+    name: SwiftLint
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Lint
+        run: swiftlint lint --strict

@@ -1,0 +1,51 @@
+name: Bug report
+description: Something behaves differently than documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Include the observed connection states or errors.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: A minimal code snippet is worth more than a description.
+      render: swift
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: AsyncBLE 0.1.0, iOS 17.4, Xcode 16.0
+    validations:
+      required: true
+
+  - type: input
+    id: peripheral
+    attributes:
+      label: Peripheral
+      description: Device and firmware, if the bug involves specific hardware.
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before submitting
+      options:
+        - label: I reproduced this on a physical device (the simulator has no Bluetooth)
+          required: true
+        - label: I am not mutating connection state through `Connection.raw`
+          required: true

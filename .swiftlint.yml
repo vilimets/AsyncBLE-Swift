@@ -1,0 +1,71 @@
+included:
+  - Sources
+  - Tests
+
+excluded:
+  - .build
+  - Example
+
+opt_in_rules:
+  - array_init
+  - closure_spacing
+  - collection_alignment
+  - contains_over_filter_count
+  - contains_over_first_not_nil
+  - empty_count
+  - empty_string
+  - explicit_init
+  - fatal_error_message
+  - first_where
+  - implicitly_unwrapped_optional
+  - last_where
+  - literal_expression_end_indentation
+  - missing_docs
+  - modifier_order
+  - multiline_parameters
+  - operator_usage_whitespace
+  - overridden_super_call
+  - prefer_self_type_over_type_of_self
+  - redundant_nil_coalescing
+  - sorted_first_last
+  - toggle_bool
+  - unneeded_parentheses_in_closure_argument
+  - vertical_parameter_alignment_on_call
+  - yoda_condition
+
+disabled_rules:
+  - todo
+
+# Every public declaration gets a doc comment at write time (PLAN.md §6).
+missing_docs:
+  excludes_extensions: false
+  excludes_inherited_types: true
+
+line_length:
+  warning: 120
+  error: 160
+  ignores_comments: false
+  ignores_urls: true
+
+identifier_name:
+  allowed_symbols: ["_"]
+  excluded:
+    - id
+    - to
+
+type_body_length:
+  warning: 300
+  error: 400
+
+file_length:
+  warning: 400
+  error: 600
+
+function_body_length:
+  warning: 60
+  error: 100
+
+nesting:
+  type_level: 2
+
+reporter: xcode
