@@ -7,7 +7,7 @@ The states a connection moves through, what drives each transition, and how to o
 Every connection in AsyncBLE is in exactly one of four states, and every change of state comes
 from a single pure state machine. There is no second source of truth to fall out of sync with.
 
-![Connection state machine with four states. Disconnected is the initial and terminal state. Calling connect moves to Connecting, which is guarded by a timeout. When discovery finishes, Connecting moves to Connected, where input and output are available. A link drop moves Connected to Reconnecting, which retries with backoff. A successful retry returns to Connected; exhausting the maximum attempts returns to Disconnected.](connection-state-machine)
+![Connection state machine with four states. Disconnected is the initial and terminal state. Calling connect moves to Connecting, which is guarded by a timeout. When discovery finishes, Connecting moves to Connected, where input and output are available. A link drop moves Connected to Reconnecting, where a pending connect stays armed. The peripheral returning moves it back to Connected; the policy's deadline expiring returns it to Disconnected.](connection-state-machine)
 
 ### The states
 
@@ -16,8 +16,10 @@ from a single pure state machine. There is no second source of truth to fall out
 - **Connecting.** A connection attempt is in flight, guarded by the connect timeout from your
   configuration. CoreBluetooth has no native timeout, so this guard is AsyncBLE's own.
 - **Connected.** The link is up and characteristic I/O is available.
-- **Reconnecting.** The link dropped and the reconnect policy allows another attempt. The state
-  carries the attempt number, so your UI can say "attempt 3" rather than just spinning.
+- **Reconnecting.** The link dropped and the policy is still waiting for it to come back. A
+  pending connect stays armed the whole time and the OS fulfils it when the peripheral returns.
+  The attempt number counts arms of that request, not retries — so with the default policy it
+  reads `1` for the whole outage, because there is one request in flight throughout.
 
 ### Observing state
 
@@ -40,11 +42,14 @@ AsyncBLE tracks which one happened and routes the transition accordingly:
 
 | What happened | Where it goes |
 | --- | --- |
-| Link dropped on its own | Reconnecting, if the policy allows another attempt |
-| You called `disconnect()` | Disconnected, with no retry |
+| Link dropped on its own | Reconnecting, if the policy waits at all |
+| You called `disconnect()` | Disconnected, with no waiting |
 
-A `disconnect()` during a reconnect cancels the pending retry. There are no zombie timers waking
-up later to reconnect a device you deliberately let go.
+A `disconnect()` while reconnecting cancels the pending connect and the give-up deadline. There
+are no zombie timers waking up later to reconnect a device you deliberately let go.
+
+> Important: A link is a device-wide resource, not a per-caller session. Two parts of your app
+> connecting to the same peripheral share one connection, so `disconnect()` ends it for both.
 
 ## Why a pure state machine
 
@@ -55,3 +60,7 @@ CoreBluetooth, does not start timers, and does not know what a peripheral is.
 That constraint pays off in tests. Every transition, including the awkward ones like a timeout
 firing while a disconnect is already in flight, is covered by feeding synthetic events to a plain
 Swift type. No hardware, no simulator, no mocking of Apple's classes.
+
+The layer underneath — the delegate bridge, the discovery cache, the I/O queue — is tested the
+same way, against an internal protocol seam with hand-written fakes standing in for the
+CoreBluetooth managers.

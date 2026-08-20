@@ -47,10 +47,14 @@ A typical session has four steps, and AsyncBLE keeps each one to a single expres
 2. Scan, filtering by service UUID, and consume discoveries from an `AsyncStream`.
 3. Connect, awaiting a `Connection` or catching a typed error.
 4. Read, write, or subscribe to characteristics by UUID. Service and characteristic discovery
-   happens lazily underneath and is cached for the life of the connection.
+   happens lazily underneath, is cached, and is rebuilt for you if the link drops and returns.
 
-You never write a delegate, and you never see a `CBPeripheral` unless you ask for it through
+You never write a delegate, and you never see a `CBPeripheral` unless you ask for one through
 <doc:EscapeHatch>.
+
+Bluetooth being switched off is not an exception to handle once — it is a state to observe.
+`adapterStates` on the central tells you when it changes, which is what a "Bluetooth is off"
+banner should be driven by.
 
 ## Next steps
 
