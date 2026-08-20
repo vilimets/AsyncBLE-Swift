@@ -95,7 +95,16 @@ extension AdvertisementData {
     /// The single place in the library where `Any` is unwrapped. Unknown keys are ignored;
     /// values of an unexpected type are treated as absent rather than trapping, because the
     /// dictionary comes from a remote device and must not be trusted to be well-formed.
-    init(rawAdvertisementData: [String: Any]) {
-        fatalError("Phase 2: parse the CBAdvertisementData* keys")
+    init(rawAdvertisementData raw: [String: Any]) {
+        self.init(
+            localName: raw[CBAdvertisementDataLocalNameKey] as? String,
+            manufacturerData: raw[CBAdvertisementDataManufacturerDataKey] as? Data,
+            serviceData: raw[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data] ?? [:],
+            serviceUUIDs: raw[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? [],
+            overflowServiceUUIDs: raw[CBAdvertisementDataOverflowServiceUUIDsKey] as? [CBUUID] ?? [],
+            solicitedServiceUUIDs: raw[CBAdvertisementDataSolicitedServiceUUIDsKey] as? [CBUUID] ?? [],
+            txPowerLevel: (raw[CBAdvertisementDataTxPowerLevelKey] as? NSNumber)?.intValue,
+            isConnectable: (raw[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue
+        )
     }
 }
