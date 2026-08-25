@@ -32,6 +32,10 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
     /// The live notification streams, which outlive the link they were made on.
     let subscriptions: SubscriptionRegistry
 
+    /// Called once, when the connection reaches terminal `disconnected`, so the central can let
+    /// it go. PLAN.md §7 Q9 makes that an explicit decision rather than something ARC works out.
+    var onTerminated: (() -> Void)?
+
     /// The actor on top, for the two jobs that need to await: restoring subscriptions after a
     /// reconnect, and nothing else. Weak because the actor owns this, not the other way round.
     weak var connection: Connection?
@@ -188,6 +192,8 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
             // ends because nothing else can ever be sent on it.
             resumeConnectWaiters(with: .failure(waiterError(for: reason)))
             bridge.unregister(peripheralID: peripheralID)
+            onTerminated?()
+            onTerminated = nil
             states.finish()
         case .connecting, .reconnecting, .disconnected(nil):
             break

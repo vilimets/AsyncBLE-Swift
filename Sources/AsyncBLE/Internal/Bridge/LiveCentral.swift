@@ -21,6 +21,9 @@ final class LiveCentral: NSObject, CentralSeam, @unchecked Sendable {
     /// `===` the library relies on — is this the peripheral that just connected? — would fail.
     private var wrappers: [ObjectIdentifier: LivePeripheral] = [:]
 
+    /// The same wrappers, by peripheral identifier — the key `connect(_:)` arrives with.
+    private var wrappersByID: [UUID: LivePeripheral] = [:]
+
     weak var seamDelegate: CentralSeamDelegate?
 
     var adapterState: AdapterState { AdapterState(manager.state) }
@@ -55,7 +58,10 @@ final class LiveCentral: NSObject, CentralSeam, @unchecked Sendable {
     }
 
     func peripheral(withID id: UUID) -> PeripheralSeam? {
-        manager.retrievePeripherals(withIdentifiers: [id]).first.map(wrapper(for:))
+        // A peripheral seen in this session's scan is already wrapped. Asking CoreBluetooth for
+        // it again would work, but this also keeps wrapper identity stable for free.
+        if let known = wrappersByID[id] { return known }
+        return manager.retrievePeripherals(withIdentifiers: [id]).first.map(wrapper(for:))
     }
 
     func connect(_ peripheral: PeripheralSeam) {
@@ -73,6 +79,7 @@ final class LiveCentral: NSObject, CentralSeam, @unchecked Sendable {
         if let existing = wrappers[key] { return existing }
         let wrapper = LivePeripheral(peripheral)
         wrappers[key] = wrapper
+        wrappersByID[peripheral.identifier] = wrapper
         return wrapper
     }
 }

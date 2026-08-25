@@ -58,7 +58,11 @@ public actor Connection {
     public nonisolated let peripheralID: UUID
 
     /// The engine: state machine, discovery cache, I/O queue and subscriptions.
-    let core: ConnectionCore
+    ///
+    /// `nonisolated` because the owning ``Central`` runs on this same queue and drives it
+    /// synchronously — which is what keeps a connect request ordered against everything else
+    /// happening on the radio.
+    nonisolated let core: ConnectionCore
 
     /// The queue this actor, its engine, and CoreBluetooth's callbacks all share.
     nonisolated let library: LibraryQueue

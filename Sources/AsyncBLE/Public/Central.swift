@@ -1,7 +1,8 @@
 // Entry point of the library: adapter lifecycle, scanning, and connecting.
 //
-// Phase 1: `scan(_:)`, `connect(_:timeout:)` with a configurable timeout,
-// `connectWhenAvailable(_:)` for the pend-until-it-appears case, and `adapterStates`.
+// Like `Connection`, this actor runs on the library queue — the queue CoreBluetooth delivers its
+// callbacks on — so a connect request is ordered against everything else happening on the radio
+// without a hop. See LibraryQueue.
 
 @preconcurrency import CoreBluetooth
 import Foundation
@@ -27,6 +28,28 @@ public actor Central {
     /// The tunables this central was created with.
     public nonisolated let configuration: Configuration
 
+    /// The queue this actor, its connections, and CoreBluetooth's callbacks all share.
+    nonisolated let library: LibraryQueue
+
+    /// The manager's callbacks, translated — and the adapter broadcast behind
+    /// ``adapterStates``.
+    nonisolated let bridge: CentralDelegateBridge
+
+    /// Where every timer in this central and its connections is armed.
+    nonisolated let scheduler: Scheduler
+
+    /// The links this central is holding open (PLAN.md §7 Q9).
+    nonisolated let registry = ConnectionRegistry()
+
+    /// Runs this actor on the library queue rather than the global concurrency pool.
+    ///
+    /// An implementation detail that has to be public because `Actor` says so. It is what puts
+    /// this actor, its connections, and CoreBluetooth's delegate callbacks in one execution
+    /// context, so none of them can run at the same time as another.
+    public nonisolated var unownedExecutor: UnownedSerialExecutor {
+        library.unownedExecutor
+    }
+
     /// Creates a central and begins bringing up the Bluetooth adapter.
     ///
     /// The adapter takes a moment to report its state, and on first use the system asks the
@@ -37,7 +60,23 @@ public actor Central {
     /// - Parameter configuration: Connect timeout, reconnect policy, and power alert
     ///   behavior. Defaults to a 10-second timeout and indefinite reconnection.
     public init(configuration: Configuration = Configuration()) {
+        let library = LibraryQueue()
+        let seam = LiveCentral(queue: library.dispatchQueue, showPowerAlert: configuration.showPowerAlert)
+        self.init(
+            configuration: configuration,
+            seam: seam,
+            library: library,
+            scheduler: QueueScheduler(queue: library.dispatchQueue)
+        )
+    }
+
+    /// Creates a central over an arbitrary seam. Internal: this is the test injection point,
+    /// not the public mock-injection API, which stays on the Planned list (PLAN.md §7 Q7).
+    init(configuration: Configuration, seam: CentralSeam, library: LibraryQueue, scheduler: Scheduler) {
         self.configuration = configuration
+        self.library = library
+        self.scheduler = scheduler
+        bridge = CentralDelegateBridge(seam: seam, library: library)
     }
 
     /// The stream of Bluetooth adapter availability.
@@ -55,7 +94,7 @@ public actor Central {
     /// }
     /// ```
     public nonisolated var adapterStates: AsyncStream<AdapterState> {
-        fatalError("Phase 2: subscribe a new consumer to the adapter-state broadcaster")
+        bridge.adapterStates.stream()
     }
 
     /// Scans for peripherals.
@@ -69,13 +108,17 @@ public actor Central {
     /// adapter that is unusable when the scan starts throws — watch ``adapterStates`` to know
     /// when it is worth trying again.
     ///
+    /// Several scans can run at once. CoreBluetooth has only one, so the library scans for the
+    /// union of every caller's filter and gives each caller only what it asked for.
+    ///
     /// - Parameter options: What to scan for, and whether to report repeat advertisements.
     ///   Defaults to an unfiltered scan reporting each peripheral once.
     /// - Returns: A stream of discoveries, one per advertising packet reported.
     /// - Throws: ``BluetoothError/bluetoothUnavailable(reason:)`` if the adapter is not
     ///   powered on.
     public func scan(_ options: ScanOptions = ScanOptions()) async throws -> AsyncStream<Discovery> {
-        fatalError("Phase 2: await poweredOn, scanForPeripherals, bridge delegate to a stream")
+        try await requirePoweredOn()
+        return bridge.startScan(options)
     }
 
     /// Scans for peripherals advertising the given services.
@@ -108,6 +151,11 @@ public actor Central {
     /// live connection. Cancelling one caller's task detaches that caller only — the attempt
     /// continues while any other caller is still waiting (PLAN.md §7 Q10).
     ///
+    /// > Note: A caller that starts the attempt sets its deadline, and that deadline is what
+    /// > withdraws the CoreBluetooth request. A caller that coalesces onto an attempt already
+    /// > running — or onto a reconnect wait — cannot restart it: its own timeout then bounds
+    /// > its own wait, and expiring detaches it without ending the attempt for anyone else.
+    ///
     /// - Parameters:
     ///   - peripheralID: The peripheral's identifier, from a ``Discovery`` or persisted from
     ///     an earlier session.
@@ -118,7 +166,7 @@ public actor Central {
     ///   ``BluetoothError/connectionFailed(underlying:)`` if CoreBluetooth rejects it, or
     ///   ``BluetoothError/bluetoothUnavailable(reason:)`` if the adapter is not powered on.
     public func connect(_ peripheralID: UUID, timeout: Duration? = nil) async throws -> Connection {
-        fatalError("Phase 2: dedupe via the registry, arm the timeout, await didConnect")
+        try await establish(peripheralID, timeout: timeout ?? configuration.connectTimeout)
     }
 
     /// Connects to a peripheral found while scanning.
@@ -152,6 +200,6 @@ public actor Central {
     ///   request, or ``BluetoothError/bluetoothUnavailable(reason:)`` if the adapter is not
     ///   powered on.
     public func connectWhenAvailable(_ peripheralID: UUID) async throws -> Connection {
-        fatalError("Phase 2: arm a pending connect with no deadline, await didConnect")
+        try await establish(peripheralID, timeout: nil)
     }
 }
