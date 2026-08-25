@@ -4,3 +4,184 @@
 // through the seam, not to CBCentralManager directly.
 //
 // Also owns the adapter-state broadcast behind `Central.adapterStates` (PLAN.md §7 Q5).
+//
+// Queue-confined: every method here runs on the library queue, either because CoreBluetooth
+// delivered the callback there or because the caller is an actor on that queue's executor.
+
+import Foundation
+
+/// A connection, as far as the central-side bridge is concerned.
+///
+/// Phase 2d implements this on the connection's engine. Keeping it a protocol means the bridge
+/// can be tested on its own — routing is a thing that can be got wrong, and it is much easier
+/// to see wrong here than three layers up.
+protocol ConnectionSink: AnyObject, Sendable {
+    /// The peripheral this connection is for. The routing key.
+    var peripheralID: UUID { get }
+
+    /// The link came up.
+    func handleConnected()
+
+    /// The connect attempt failed outright.
+    func handleFailedToConnect(_ error: NSError?)
+
+    /// The link ended — for whatever reason; the connection knows whether it asked for it.
+    func handleDisconnected(_ error: NSError?)
+
+    /// The adapter's availability changed. Every connection hears about it, because a pending
+    /// connect is void while the radio is off and worth re-arming when it returns.
+    func handleAdapterChange(_ state: AdapterState)
+}
+
+/// Turns the central manager's callbacks into the library's own vocabulary, and owns everything
+/// that is central-wide rather than per-connection: the adapter broadcast and the scan.
+final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
+    /// The manager, for whoever needs to arm a connect. Reachable, not hidden: the connections
+    /// this bridge routes to are the ones that ask it to connect and cancel.
+    let seam: CentralSeam
+
+    /// The adapter state, broadcast to every ``Central/adapterStates`` subscriber.
+    let adapterStates: Broadcaster<AdapterState>
+
+    private let library: LibraryQueue
+    private var scans: [UUID: ScanSession] = [:]
+    private var activePlan: ScanPlan?
+    private var sinks: [UUID: ConnectionSink] = [:]
+
+    init(seam: CentralSeam, library: LibraryQueue) {
+        self.seam = seam
+        self.library = library
+        adapterStates = Broadcaster(seam.adapterState)
+        seam.seamDelegate = self
+    }
+
+    // MARK: Scanning
+
+    /// Starts a scan for one caller and returns their stream.
+    ///
+    /// The radio is scanning for the union of every live session's filter; this caller sees
+    /// only what it asked for. Ending iteration ends this session, and the last session ending
+    /// stops the radio — a scan that outlives its consumer is a battery bug.
+    func startScan(_ options: ScanOptions) -> AsyncStream<Discovery> {
+        library.assertIsolated()
+        return AsyncStream { continuation in
+            let session = ScanSession(options: options, continuation: continuation)
+            scans[session.id] = session
+            applyScanPlan()
+            continuation.onTermination = { [weak self, library] _ in
+                library.dispatchQueue.async { self?.endScan(session.id) }
+            }
+        }
+    }
+
+    /// How many scans are running. For tests, and for reasoning about the radio.
+    var activeScanCount: Int { scans.count }
+
+    private func endScan(_ id: UUID) {
+        scans.removeValue(forKey: id)?.finish()
+        applyScanPlan()
+    }
+
+    private func finishAllScans() {
+        let sessions = scans.values
+        scans.removeAll()
+        for session in sessions {
+            session.finish()
+        }
+        applyScanPlan()
+    }
+
+    private func applyScanPlan() {
+        guard !scans.isEmpty else {
+            if activePlan != nil {
+                activePlan = nil
+                seam.stopScan()
+            }
+            return
+        }
+        let plan = ScanPlan(sessions: scans.values)
+        // Re-issuing an identical scan would restart CoreBluetooth's duplicate filtering, so a
+        // second session with the same filter must not disturb the first.
+        guard plan != activePlan else { return }
+        activePlan = plan
+        seam.scanForPeripherals(services: plan.services, allowDuplicates: plan.allowDuplicates)
+    }
+
+    // MARK: Connection routing
+
+    /// Starts routing this peripheral's callbacks to a connection.
+    ///
+    /// Registration is explicit in both directions rather than weak: by PLAN.md §7 Q9 a link
+    /// lives until something closes it, so its lifetime is a decision the central makes, never
+    /// something ARC works out on its own.
+    func register(_ sink: ConnectionSink) {
+        library.assertIsolated()
+        sinks[sink.peripheralID] = sink
+    }
+
+    /// Stops routing a peripheral's callbacks. Called when a connection reaches `disconnected`.
+    func unregister(peripheralID: UUID) {
+        library.assertIsolated()
+        sinks.removeValue(forKey: peripheralID)
+    }
+
+    /// Whether a connection is currently registered for a peripheral.
+    func isRegistered(peripheralID: UUID) -> Bool {
+        sinks[peripheralID] != nil
+    }
+
+    // MARK: CentralSeamDelegate
+
+    func centralSeamDidUpdateAdapterState(_ seam: CentralSeam) {
+        let state = seam.adapterState
+        adapterStates.send(state)
+
+        if case .unavailable = state {
+            // A scan cannot survive the radio going away, and CoreBluetooth has already stopped
+            // it. Finishing the streams says so, rather than leaving them silently empty.
+            finishAllScans()
+        }
+
+        for sink in sinks.values {
+            sink.handleAdapterChange(state)
+        }
+    }
+
+    func centralSeam(
+        _ seam: CentralSeam,
+        didDiscover peripheral: PeripheralSeam,
+        advertisement: AdvertisementData,
+        rssi: Int?
+    ) {
+        let discovery = Discovery(
+            peripheralID: peripheral.identifier,
+            // The advertised name first: `CBPeripheral.name` may be a GAP name cached from an
+            // earlier connection, which is not what this packet said.
+            name: advertisement.localName ?? peripheral.name,
+            rssi: rssi,
+            advertisementData: advertisement
+        )
+        for session in scans.values {
+            session.offer(discovery)
+        }
+    }
+
+    func centralSeam(_ seam: CentralSeam, didConnect peripheral: PeripheralSeam) {
+        guard let sink = sinks[peripheral.identifier] else {
+            // Nobody is waiting for this link. It is the race in PLAN.md §7 Q10: the last
+            // caller cancelled, the attempt was withdrawn, and it landed anyway. Close it —
+            // by Q9 nothing else ever would.
+            seam.cancelConnection(peripheral)
+            return
+        }
+        sink.handleConnected()
+    }
+
+    func centralSeam(_ seam: CentralSeam, didFailToConnect peripheral: PeripheralSeam, error: NSError?) {
+        sinks[peripheral.identifier]?.handleFailedToConnect(error)
+    }
+
+    func centralSeam(_ seam: CentralSeam, didDisconnect peripheral: PeripheralSeam, error: NSError?) {
+        sinks[peripheral.identifier]?.handleDisconnected(error)
+    }
+}
