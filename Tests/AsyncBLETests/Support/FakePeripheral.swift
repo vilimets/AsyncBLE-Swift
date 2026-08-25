@@ -50,6 +50,9 @@ final class FakePeripheral: PeripheralSeam, @unchecked Sendable {
 
     var responseMode: ResponseMode = .queued
 
+    /// An error to report instead of discovering services, for testing the failure path.
+    var servicesDiscoveryError: NSError?
+
     private(set) var calls: [Call] = []
     private var discovered: [FakeService] = []
     private var pending: [() -> Void] = []
@@ -68,6 +71,10 @@ final class FakePeripheral: PeripheralSeam, @unchecked Sendable {
     func discoverServices(_ uuids: [CBUUID]?) {
         calls.append(.discoverServices(uuids))
         answer { [self] in
+            guard servicesDiscoveryError == nil else {
+                seamDelegate?.peripheralSeam(self, didDiscoverServices: servicesDiscoveryError)
+                return
+            }
             discovered = uuids.map { wanted in gatt.filter { wanted.contains($0.uuid) } } ?? gatt
             seamDelegate?.peripheralSeam(self, didDiscoverServices: nil)
         }
@@ -77,8 +84,10 @@ final class FakePeripheral: PeripheralSeam, @unchecked Sendable {
         calls.append(.discoverCharacteristics(uuids, service: service.uuid))
         guard let fake = service as? FakeService else { return }
         answer { [self] in
-            fake.revealCharacteristics(matching: uuids)
-            seamDelegate?.peripheralSeam(self, didDiscoverCharacteristicsFor: fake, error: nil)
+            if fake.discoveryError == nil {
+                fake.revealCharacteristics(matching: uuids)
+            }
+            seamDelegate?.peripheralSeam(self, didDiscoverCharacteristicsFor: fake, error: fake.discoveryError)
         }
     }
 
@@ -175,6 +184,10 @@ final class FakeService: ServiceSeam, @unchecked Sendable {
 
     /// Every characteristic this service has, discovered or not.
     let all: [FakeCharacteristic]
+
+    /// An error to report instead of revealing them — one service in a tree failing to
+    /// enumerate, which must not take the rest of the walk down with it.
+    var discoveryError: NSError?
 
     private var revealed: [FakeCharacteristic] = []
 
