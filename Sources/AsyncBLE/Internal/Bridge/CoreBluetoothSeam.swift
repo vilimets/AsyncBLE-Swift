@@ -45,6 +45,9 @@ protocol CentralSeam: AnyObject, Sendable {
 
     /// Closes a link, or withdraws a pending connect. CoreBluetooth uses one call for both.
     func cancelConnection(_ peripheral: PeripheralSeam)
+
+    /// The manager itself, for the escape hatch. `nil` behind a fake, which has none.
+    var rawCentral: CBCentralManager? { get }
 }
 
 /// What this library needs from `CBPeripheral`.
@@ -85,6 +88,9 @@ protocol PeripheralSeam: AnyObject, Sendable {
 
     /// The largest value that fits in one write of the given mode.
     func maximumWriteValueLength(for mode: Connection.WriteMode) -> Int
+
+    /// The peripheral itself, for the escape hatch. `nil` behind a fake, which has none.
+    var rawPeripheral: CBPeripheral? { get }
 }
 
 /// What this library needs from `CBService`.

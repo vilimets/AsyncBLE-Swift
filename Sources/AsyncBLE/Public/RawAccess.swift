@@ -40,6 +40,6 @@ extension Connection {
     public func withRaw<T: Sendable>(
         _ body: @Sendable (CBPeripheral, CBCentralManager) throws -> T
     ) async rethrows -> T {
-        fatalError("Phase 2: hop to the library queue, call body with the live CB objects")
+        try core.withRawObjects(body)
     }
 }

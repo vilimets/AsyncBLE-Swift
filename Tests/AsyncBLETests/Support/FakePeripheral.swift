@@ -60,6 +60,9 @@ final class FakePeripheral: PeripheralSeam, @unchecked Sendable {
     /// The services discovery has revealed so far — empty until it runs, as CoreBluetooth's are.
     var services: [ServiceSeam] { discovered }
 
+    /// No CoreBluetooth object behind a fake, so the escape hatch is unavailable here.
+    let rawPeripheral: CBPeripheral? = nil
+
     init(identifier: UUID = UUID(), name: String? = "Fake", gatt: [FakeService] = []) {
         self.identifier = identifier
         self.name = name

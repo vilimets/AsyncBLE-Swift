@@ -21,6 +21,7 @@ final class LivePeripheral: NSObject, PeripheralSeam, @unchecked Sendable {
     var name: String? { peripheral.name }
     var canSendWriteWithoutResponse: Bool { peripheral.canSendWriteWithoutResponse }
     var services: [ServiceSeam] { (peripheral.services ?? []).map(wrapper(for:)) }
+    var rawPeripheral: CBPeripheral? { peripheral }
 
     /// Wraps a peripheral and takes over its delegate.
     ///

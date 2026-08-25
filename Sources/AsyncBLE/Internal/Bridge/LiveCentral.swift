@@ -25,6 +25,8 @@ final class LiveCentral: NSObject, CentralSeam, @unchecked Sendable {
 
     var adapterState: AdapterState { AdapterState(manager.state) }
 
+    var rawCentral: CBCentralManager? { manager }
+
     /// Creates a manager, which is what triggers the system permission prompt.
     ///
     /// - Parameters:

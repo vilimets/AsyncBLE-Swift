@@ -1,0 +1,307 @@
+// One connection's engine: the state machine, the effects it asks for, and everything the
+// callbacks land in.
+//
+// Why a class and not the actor itself. CoreBluetooth delivers callbacks synchronously on the
+// library queue, and at the iOS 16 floor there is no way to tell the compiler that a synchronous
+// call arriving on an actor's executor is actor-isolated (`assumeIsolated` is iOS 17). So the
+// mutable state lives here, in a queue-confined class that both the callbacks and the actor can
+// touch directly, and `Connection` — an actor on that same queue's executor — provides the async
+// API on top. The custom serial executor is what makes the two mutually exclusive, so this is
+// confinement rather than hope. See `LibraryQueue`.
+//
+// Everything here is synchronous. Anything that has to await lives in `Connection`.
+
+@preconcurrency import CoreBluetooth
+import Foundation
+
+/// The engine behind one ``Connection``.
+final class ConnectionCore: ConnectionSink, @unchecked Sendable {
+    let peripheralID: UUID
+    let library: LibraryQueue
+    let peripheral: PeripheralSeam
+
+    /// The state stream behind ``Connection/states``.
+    let states: Broadcaster<ConnectionState>
+
+    /// The FIFO every read and write passes through (PLAN.md §7 Q4, Q11).
+    let ioQueue = IOQueue()
+
+    /// Lazy discovery for this link. Flushed and rebuilt on every reconnect.
+    let cache: DiscoveryCache
+
+    /// The live notification streams, which outlive the link they were made on.
+    let subscriptions: SubscriptionRegistry
+
+    /// The actor on top, for the two jobs that need to await: restoring subscriptions after a
+    /// reconnect, and nothing else. Weak because the actor owns this, not the other way round.
+    weak var connection: Connection?
+
+    /// The central-side bridge: the radio, and the registry this connection unregisters from
+    /// when it ends.
+    let bridge: CentralDelegateBridge
+
+    private let scheduler: Scheduler
+    private var machine: ConnectionStateMachine
+
+    private var connectTimer: ScheduledWork?
+    private var giveUpTimer: ScheduledWork?
+    private var reArmTimer: ScheduledWork?
+
+    /// The last failure CoreBluetooth reported, so a waiter can be resumed with it. The state
+    /// machine deliberately does not carry it — `DisconnectReason` has nowhere to put an error.
+    private var lastConnectError: NSError?
+
+    /// The single in-flight read, write or subscribe. Single because the FIFO guarantees it:
+    /// ATT allows one outstanding request per connection anyway.
+    var pendingRead: PendingOperation<Data>?
+    var pendingWrite: PendingOperation<Void>?
+    var pendingNotify: PendingOperation<Void>?
+
+    /// Writers parked on `canSendWriteWithoutResponse`.
+    var writeReadyWaiters: [(Result<Void, Error>) -> Void] = []
+
+    private var connectWaiters: [(id: UUID, resume: (Result<Void, Error>) -> Void)] = []
+
+    /// An operation waiting on a CoreBluetooth callback for one characteristic.
+    struct PendingOperation<Value> {
+        let uuid: CBUUID
+        let deliver: (Result<Value, Error>) -> Void
+    }
+
+    init(
+        peripheral: PeripheralSeam,
+        bridge: CentralDelegateBridge,
+        library: LibraryQueue,
+        scheduler: Scheduler,
+        policy: ReconnectPolicy
+    ) {
+        peripheralID = peripheral.identifier
+        self.peripheral = peripheral
+        self.bridge = bridge
+        self.library = library
+        self.scheduler = scheduler
+        machine = ConnectionStateMachine(policy: policy)
+        cache = DiscoveryCache(peripheral: peripheral)
+        subscriptions = SubscriptionRegistry(library: library)
+        states = Broadcaster(machine.state)
+
+        peripheral.seamDelegate = self
+        subscriptions.onLastSubscriberRemoved = { [weak self] uuid in
+            self?.stopNotifying(uuid)
+        }
+    }
+
+    /// The current state, straight from the machine — there is no second copy to drift.
+    var state: ConnectionState { machine.state }
+
+    // MARK: Requests
+
+    /// Asks for a link. `timeout` of `nil` is a pending connect with no deadline.
+    func requestConnect(timeout: Duration?) {
+        library.assertIsolated()
+        handle(.connectRequested(timeout: timeout))
+    }
+
+    /// Ends the link and stops waiting for it, whatever the policy says.
+    func requestDisconnect() {
+        library.assertIsolated()
+        handle(.disconnectRequested)
+    }
+
+    // MARK: Waiting for a link
+
+    /// Registers a caller waiting for the link to come up.
+    ///
+    /// - Returns: A token for detaching that caller again if its task is cancelled.
+    @discardableResult
+    func addConnectWaiter(_ resume: @escaping (Result<Void, Error>) -> Void) -> UUID {
+        let id = UUID()
+        if case .connected = machine.state {
+            resume(.success(()))
+            return id
+        }
+        connectWaiters.append((id, resume))
+        return id
+    }
+
+    /// Detaches one waiting caller, and withdraws the attempt if it was the last.
+    ///
+    /// PLAN.md §7 Q10: cancelling one caller detaches that caller only. The attempt continues
+    /// while anyone is still waiting, and is cancelled when the last one goes — which refcounts
+    /// the *attempt*, not the link, because an in-flight attempt has no device-wide effect.
+    func removeConnectWaiter(_ id: UUID) {
+        library.assertIsolated()
+        connectWaiters.removeAll { $0.id == id }
+        guard connectWaiters.isEmpty, machine.state == .connecting else { return }
+        handle(.disconnectRequested)
+    }
+
+    /// Whether anyone is still waiting for this connection to come up.
+    var hasConnectWaiters: Bool { !connectWaiters.isEmpty }
+
+    // MARK: ConnectionSink
+
+    func handleConnected() {
+        handle(.didConnect)
+    }
+
+    func handleFailedToConnect(_ error: NSError?) {
+        lastConnectError = error
+        handle(.didFailToConnect(error))
+    }
+
+    func handleDisconnected(_ error: NSError?) {
+        // Always `userInitiated: false`. A disconnect this library asked for has already moved
+        // the machine to `disconnected`, where this late callback lands and is ignored — so the
+        // flag from PLAN.md §2 is carried by the machine's own state rather than by a variable
+        // that could get out of step with it.
+        handle(.didDisconnect(error, userInitiated: false))
+    }
+
+    func handleAdapterChange(_ state: AdapterState) {
+        handle(.adapterChanged(state))
+    }
+
+    // MARK: The loop
+
+    private func handle(_ event: ConnectionEvent) {
+        let before = machine.state
+        let effects = machine.handle(event)
+
+        for effect in effects {
+            apply(effect)
+        }
+
+        guard machine.state != before else { return }
+        publish(machine.state)
+    }
+
+    private func publish(_ state: ConnectionState) {
+        states.send(state)
+
+        switch state {
+        case .connected:
+            resumeConnectWaiters(with: .success(()))
+        case .disconnected(let reason?):
+            // Terminal. Everyone still waiting learns why, the central stops routing to a
+            // connection that will never be used again (PLAN.md §7 Q9), and the state stream
+            // ends because nothing else can ever be sent on it.
+            resumeConnectWaiters(with: .failure(waiterError(for: reason)))
+            bridge.unregister(peripheralID: peripheralID)
+            states.finish()
+        case .connecting, .reconnecting, .disconnected(nil):
+            break
+        }
+    }
+
+    private func resumeConnectWaiters(with result: Result<Void, Error>) {
+        let waiting = connectWaiters
+        connectWaiters.removeAll()
+        for waiter in waiting {
+            waiter.resume(result)
+        }
+    }
+
+    /// What a caller awaiting a link is told when it ends instead.
+    private func waiterError(for reason: DisconnectReason) -> BluetoothError {
+        switch reason {
+        case .connectTimeout: .connectTimeout
+        case .connectFailed: .connectionFailed(underlying: lastConnectError)
+        case .bluetoothUnavailable(let unavailable): .bluetoothUnavailable(reason: unavailable)
+        case .userInitiated, .linkLost, .reconnectGaveUp: .disconnected(reason: reason)
+        }
+    }
+
+    // MARK: Effects
+
+    private func apply(_ effect: ConnectionEffect) {
+        switch effect {
+        case .armConnect:
+            bridge.seam.connect(peripheral)
+        case .cancelConnect:
+            bridge.seam.cancelConnection(peripheral)
+
+        case .startConnectTimeout(let duration):
+            connectTimer = schedule(duration) { $0.handle(.connectTimedOut) }
+        case .cancelConnectTimeout:
+            connectTimer?.cancel()
+            connectTimer = nil
+
+        case .startGiveUpDeadline(let duration):
+            giveUpTimer = schedule(duration) { $0.handle(.giveUpDeadlineReached) }
+        case .cancelGiveUpDeadline:
+            giveUpTimer?.cancel()
+            giveUpTimer = nil
+
+        case .startReArmTimer(let interval):
+            reArmTimer = schedule(interval) { $0.handle(.reArmTimerFired) }
+        case .cancelReArmTimer:
+            reArmTimer?.cancel()
+            reArmTimer = nil
+
+        case .invalidateDiscoveryCache:
+            cache.invalidate()
+        case .markSubscriptionsForRestore:
+            subscriptions.markForRestore()
+        case .restoreSubscriptions:
+            startSubscriptionRestore()
+
+        case .endPendingOperations(let reason):
+            failAllOperations(with: BluetoothError.disconnected(reason: reason))
+        case .endSubscriptions(let reason):
+            subscriptions.endAll(reason: reason)
+        }
+    }
+
+    private func schedule(_ duration: Duration, _ work: @escaping (ConnectionCore) -> Void) -> ScheduledWork {
+        scheduler.schedule(after: duration) { [weak self] in
+            guard let self else { return }
+            work(self)
+        }
+    }
+
+    /// Fails everything a caller could currently be suspended on.
+    ///
+    /// Three places, one call: waiting for a turn in the FIFO, waiting on discovery, and waiting
+    /// on a CoreBluetooth callback that is not coming. Missing any one of them strands a caller
+    /// forever, which is the failure mode this library exists to not have.
+    private func failAllOperations(with error: BluetoothError) {
+        ioQueue.failAll(with: error)
+        cache.failWaiters(with: error)
+
+        let read = pendingRead
+        let write = pendingWrite
+        let notify = pendingNotify
+        let parked = writeReadyWaiters
+        pendingRead = nil
+        pendingWrite = nil
+        pendingNotify = nil
+        writeReadyWaiters = []
+
+        read?.deliver(.failure(error))
+        write?.deliver(.failure(error))
+        notify?.deliver(.failure(error))
+        for waiter in parked {
+            waiter(.failure(error))
+        }
+    }
+
+    /// Re-establishes every subscription that was live when the link dropped.
+    ///
+    /// Takes its place in the FIFO synchronously, before handing off to the actor: a read issued
+    /// the instant the link came back must not overtake the resubscribe that the caller never
+    /// asked for but is entitled to.
+    private func startSubscriptionRestore() {
+        guard !subscriptions.pendingRestore.isEmpty else { return }
+        let ticket = ioQueue.enqueue()
+        Task { [weak connection] in
+            await connection?.restoreSubscriptions(holding: ticket)
+        }
+    }
+
+    /// Turns the peripheral's notify flag off once the last subscriber has gone.
+    private func stopNotifying(_ uuid: CBUUID) {
+        guard machine.state == .connected, let characteristic = cache.cached(uuid) else { return }
+        peripheral.setNotifyValue(false, for: characteristic)
+    }
+}

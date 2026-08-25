@@ -53,6 +53,12 @@ identifier_name:
     - id
     - to
 
+# This library is switch-heavy by design: the state machine's transition table and the effect
+# dispatch that mirrors it are flat, exhaustive switches. Counting each case as a branch flags
+# exactly the code that is clearest left as one table, so cases do not count toward complexity.
+cyclomatic_complexity:
+  ignores_case_statements: true
+
 type_body_length:
   warning: 300
   error: 400

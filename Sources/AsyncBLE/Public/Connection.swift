@@ -1,7 +1,9 @@
 // A live link to one peripheral. Actor-isolated; state escapes only through streams.
 //
-// Phase 1: `state`/`states`, `read`/`write`/`notifications(for:)`, `disconnect()`, and the
-// `withRaw` escape hatch.
+// The actor's executor is the library queue, the same queue CoreBluetooth delivers its callbacks
+// on (see LibraryQueue). Its mutable state lives in ConnectionCore, which those callbacks reach
+// synchronously — so an actor method and a delegate callback can never run at the same time,
+// and the CoreBluetooth objects have exactly one thread touching them.
 
 @preconcurrency import CoreBluetooth
 import Foundation
@@ -55,12 +57,27 @@ public actor Connection {
     /// The identifier of the peripheral at the other end.
     public nonisolated let peripheralID: UUID
 
+    /// The engine: state machine, discovery cache, I/O queue and subscriptions.
+    let core: ConnectionCore
+
+    /// The queue this actor, its engine, and CoreBluetooth's callbacks all share.
+    nonisolated let library: LibraryQueue
+
+    /// Runs this actor on the library queue rather than the global concurrency pool.
+    ///
+    /// An implementation detail that has to be public because `Actor` says so. It is what makes
+    /// this actor and CoreBluetooth's delegate callbacks mutually exclusive, which in turn is
+    /// what makes ``withRaw(_:)`` safe (PLAN.md §7 Q6).
+    public nonisolated var unownedExecutor: UnownedSerialExecutor {
+        library.unownedExecutor
+    }
+
     /// The current state of the link.
     ///
     /// A point-in-time snapshot. To follow transitions, iterate ``states`` instead — polling
     /// this in a loop will miss states that pass quickly.
     public var state: ConnectionState {
-        fatalError("Phase 2: read the state machine's current state")
+        core.state
     }
 
     /// The stream of state transitions.
@@ -75,12 +92,16 @@ public actor Connection {
     /// }
     /// ```
     public nonisolated var states: AsyncStream<ConnectionState> {
-        fatalError("Phase 2: subscribe a new consumer to the state broadcaster")
+        core.states.stream()
     }
 
-    /// Creates a connection. Not part of the public API surface — use ``Central``.
-    init(peripheralID: UUID) {
-        self.peripheralID = peripheralID
+    /// Creates a connection around its engine. Not part of the public API surface — use
+    /// ``Central``.
+    init(core: ConnectionCore) {
+        peripheralID = core.peripheralID
+        library = core.library
+        self.core = core
+        core.connection = self
     }
 
     /// Reads a characteristic's current value.
@@ -96,7 +117,20 @@ public actor Connection {
     ///   ``BluetoothError/disconnected(reason:)`` if the link is down — including while the
     ///   connection is `reconnecting`, which fails immediately rather than waiting.
     public func read(_ characteristic: CBUUID) async throws -> Data {
-        fatalError("Phase 2: enqueue, resolve the characteristic, then await readValue")
+        let ticket = core.enqueue()
+        defer { core.complete(ticket) }
+        try await waitForTurn(ticket)
+
+        try core.ensureConnected()
+        let resolved = try await resolveCharacteristic(characteristic)
+        guard resolved.properties.contains(.read) else {
+            throw BluetoothError.operationNotSupported
+        }
+        try core.ensureConnected()
+
+        return try await suspend { deliver in
+            core.startRead(resolved, deliver)
+        }
     }
 
     /// Writes a value to a characteristic.
@@ -121,7 +155,38 @@ public actor Connection {
     ///   it, ``BluetoothError/operationNotSupported`` if it does not accept writes in this
     ///   mode, or ``BluetoothError/disconnected(reason:)`` if the link is down.
     public func write(_ data: Data, to characteristic: CBUUID, mode: WriteMode = .withResponse) async throws {
-        fatalError("Phase 2: enqueue, resolve the characteristic, apply flow control, write")
+        let ticket = core.enqueue()
+        defer { core.complete(ticket) }
+        try await waitForTurn(ticket)
+
+        try core.ensureConnected()
+        let resolved = try await resolveCharacteristic(characteristic)
+        try core.ensureConnected()
+
+        switch mode {
+        case .withResponse:
+            guard resolved.properties.contains(.write) else {
+                throw BluetoothError.operationNotSupported
+            }
+            try await suspend { deliver in
+                core.startWrite(data, to: resolved, deliver)
+            }
+
+        case .withoutResponse:
+            guard resolved.properties.contains(.writeWithoutResponse) else {
+                throw BluetoothError.operationNotSupported
+            }
+            // Flow control. CoreBluetooth drops a write-without-response it has no room for,
+            // silently, so waiting is the only thing standing between a tight loop and data
+            // loss. A loop rather than one wait: the radio can fill again in between.
+            while !core.canSendWriteWithoutResponse {
+                try await suspend { resume in
+                    core.awaitWriteReady(resume)
+                }
+                try core.ensureConnected()
+            }
+            core.sendWriteWithoutResponse(data, to: resolved)
+        }
     }
 
     /// Subscribes to a characteristic's notifications.
@@ -154,7 +219,32 @@ public actor Connection {
         for characteristic: CBUUID,
         bufferingPolicy: AsyncThrowingStream<Data, Error>.Continuation.BufferingPolicy = .bufferingNewest(256)
     ) async throws -> AsyncThrowingStream<Data, Error> {
-        fatalError("Phase 2: resolve the characteristic, setNotifyValue, bridge to a stream")
+        let ticket = core.enqueue()
+        defer { core.complete(ticket) }
+        try await waitForTurn(ticket)
+
+        try core.ensureConnected()
+        let resolved = try await resolveCharacteristic(characteristic)
+        guard resolved.properties.contains(.notify) || resolved.properties.contains(.indicate) else {
+            throw BluetoothError.operationNotSupported
+        }
+        try core.ensureConnected()
+
+        // A second subscriber to a live characteristic joins the first rather than touching the
+        // radio: CoreBluetooth has one notify flag per characteristic, not one per caller.
+        let alreadyLive = core.hasSubscribers(for: characteristic)
+        let (subscription, stream) = core.subscribe(to: characteristic, bufferingPolicy: bufferingPolicy)
+        guard !alreadyLive else { return stream }
+
+        do {
+            try await suspend { resume in
+                core.setNotify(true, on: resolved, resume)
+            }
+        } catch {
+            core.remove(subscription)
+            throw error
+        }
+        return stream
     }
 
     /// Closes the link and stops waiting for it to come back.
@@ -170,6 +260,6 @@ public actor Connection {
     /// Idempotent, and safe to call from any state. In-flight and queued reads and writes fail
     /// with ``BluetoothError/disconnected(reason:)``.
     public func disconnect() async {
-        fatalError("Phase 2: feed disconnectRequested into the state machine")
+        core.requestDisconnect()
     }
 }

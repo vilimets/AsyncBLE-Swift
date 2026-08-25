@@ -38,6 +38,10 @@ final class FakeCentral: CentralSeam, @unchecked Sendable {
 
     private(set) var calls: [Call] = []
 
+    /// No CoreBluetooth objects behind a fake, so the escape hatch is unavailable — which is
+    /// the one thing about it that cannot be tested without a radio.
+    let rawCentral: CBCentralManager? = nil
+
     init(adapterState: AdapterState = .poweredOn) {
         self.adapterState = adapterState
     }
