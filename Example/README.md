@@ -22,6 +22,29 @@ The `NSBluetoothAlwaysUsageDescription` string is set in build settings (`GENERA
 is on, so there is no `Info.plist` to edit). Without it iOS never shows the permission prompt and
 the adapter reports `unauthorized` forever — a mistake worth knowing by sight.
 
+## Reading the log
+
+The device screen's transitions list is timestamped and merges every event — connect, read,
+subscribe, and every state change — into one ordered timeline, plus a **Copy Log** button
+(top right) that puts the whole thing on the clipboard as plain text: state, transitions, and
+notification values, oldest first. Paste that instead of screenshotting a scroll position.
+
+A subscribe is logged in three steps for a reason: `requesting` (the call was made),
+`confirmed, awaiting values` (the peripheral accepted the subscription — CoreBluetooth's
+`didUpdateNotificationStateFor` came back without error), then either notification values as
+they arrive or a final `stream finished, no error, cancelled=…` line. That `cancelled` flag is
+the tell for "the app tore this down" (a screen navigation, an `unsubscribe()` tap — task
+cancellation ends the stream without an error, same as the library ending it cleanly) versus
+"the peripheral or the library ended it" (`cancelled=false`). If you see `confirmed` but the
+stream ends moments later with zero values and `cancelled=false`, that is a real gap worth
+reporting: the library said the subscription was live and then closed it with nothing to show
+for it.
+
+`operationNotSupported` on a read or subscribe usually is not a bug — it means the
+characteristic's GATT properties do not include that operation. Heart Rate Measurement (`2A37`)
+is a good example: notify-only, no `Read` property, so reading it should throw exactly this.
+Check the characteristic's properties (LightBlue shows them) before treating this as a failure.
+
 ## What it is for
 
 It is the manual smoke test in the plan's Phase 2 definition of done, which is why it is generic
