@@ -36,8 +36,39 @@ Target audience: iOS developers integrating BLE devices.
   - Synchronous inspection is safe; mutating connection state is undefined library behavior
   - Callback-based CoreBluetooth calls (RSSI, descriptors, L2CAP) do **not** work through it — their results go to the library's delegate
 - Adapter state (powered off / unauthorized / unsupported) surfaced as typed errors
+- Logging via OSLog, with a pluggable `LogHandler` for redirecting it or asserting on it
 - Unit tests for the state machine and reconnect logic via synthetic events (no hardware), plus an internal protocol seam so the delegate bridge, discovery cache and I/O queue are covered too
 - Example app: minimal SwiftUI — scan list, connect, live characteristic value
+
+## Logging
+
+The library logs to Apple's unified logging system (OSLog) by default, on, at the `notice`
+level — connect, disconnect, reconnection decisions, adapter changes, scanning. Nothing is
+tunable at runtime; you configure it once when you create the `Central`.
+
+```swift
+// Default: OSLog, on, at .notice.
+let central = Central()
+
+// More detail — per-operation and per-callback tracing.
+let central = Central(logging: .init(minimumLevel: .debug))
+
+// Somewhere other than OSLog.
+let central = Central(logging: .init(handler: MyLogHandler()))
+
+// Off.
+let central = Central(logging: .init(isEnabled: false))
+```
+
+View the OSLog output in Console.app, or from the terminal:
+
+```
+log stream --predicate 'subsystem == "com.asyncble"' --level debug
+```
+
+Six categories — `central`, `connection`, `io`, `discovery`, `reconnect`, `bridge` — so you
+can narrow to just reconnection or just the raw CoreBluetooth callbacks. Characteristic
+payload bytes are never logged; identifiers are (they are random per-app values).
 
 ## Out of scope
 

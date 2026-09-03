@@ -57,6 +57,10 @@ hardware and without mocking Apple's classes.
 
 - <doc:EscapeHatch>
 
+### Diagnostics
+
+- <doc:Logging>
+
 <!-- Symbol curation lands with the Phase 1 API. Uncomment as the types appear, so the
      documentation build stays warning-free in the meantime.
 
