@@ -18,6 +18,7 @@ enum ErrorKind: Equatable {
     case disconnected(DisconnectReason)
     case characteristicNotFound(CBUUID)
     case operationNotSupported
+    case operationFailed
     case cancelled
     /// Anything that is not a `BluetoothError`, identified by its type.
     case other(String)
@@ -41,6 +42,7 @@ enum ErrorKind: Equatable {
         case .disconnected(let reason): self = .disconnected(reason)
         case .characteristicNotFound(let uuid): self = .characteristicNotFound(uuid)
         case .operationNotSupported: self = .operationNotSupported
+        case .operationFailed: self = .operationFailed
         }
     }
 }

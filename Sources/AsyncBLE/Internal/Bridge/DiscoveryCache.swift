@@ -71,11 +71,14 @@ final class DiscoveryCache: @unchecked Sendable {
     // MARK: Discovery callbacks
 
     /// Service discovery came back.
+    ///
+    /// A failure here is reported as ``BluetoothError/operationFailed(underlying:)``: discovery
+    /// is a GATT operation on a link that is still up, not a connect attempt that failed.
     func handleServicesDiscovered(error: NSError?) {
         guard walk == .discoveringServices else { return }
 
         if let error {
-            fail(with: BluetoothError.connectionFailed(underlying: error))
+            fail(with: BluetoothError.operationFailed(underlying: error))
             walk = .notStarted
             return
         }

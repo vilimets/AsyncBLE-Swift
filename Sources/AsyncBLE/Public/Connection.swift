@@ -117,7 +117,8 @@ public actor Connection {
     /// - Parameter characteristic: The characteristic's UUID.
     /// - Returns: The bytes the peripheral returned.
     /// - Throws: ``BluetoothError/characteristicNotFound(_:)`` if the peripheral does not have
-    ///   it, ``BluetoothError/operationNotSupported`` if it is not readable, or
+    ///   it, ``BluetoothError/operationNotSupported`` if it is not readable,
+    ///   ``BluetoothError/operationFailed(underlying:)`` if the peripheral refuses the read, or
     ///   ``BluetoothError/disconnected(reason:)`` if the link is down — including while the
     ///   connection is `reconnecting`, which fails immediately rather than waiting.
     public func read(_ characteristic: CBUUID) async throws -> Data {
@@ -157,7 +158,11 @@ public actor Connection {
     ///     ``WriteMode/withResponse``.
     /// - Throws: ``BluetoothError/characteristicNotFound(_:)`` if the peripheral does not have
     ///   it, ``BluetoothError/operationNotSupported`` if it does not accept writes in this
-    ///   mode, or ``BluetoothError/disconnected(reason:)`` if the link is down.
+    ///   mode, ``BluetoothError/operationFailed(underlying:)`` if the peripheral rejects the
+    ///   write, or ``BluetoothError/disconnected(reason:)`` if the link is down.
+    ///
+    ///   Only ``WriteMode/withResponse`` can report a rejection. A write-without-response is
+    ///   never acknowledged, so nothing can fail it.
     public func write(_ data: Data, to characteristic: CBUUID, mode: WriteMode = .withResponse) async throws {
         let ticket = core.enqueue()
         defer { core.complete(ticket) }
@@ -217,8 +222,9 @@ public actor Connection {
     ///     firmware image or any packetized protocol — and be sure you can keep up.
     /// - Returns: A stream of values, one per notification.
     /// - Throws: ``BluetoothError/characteristicNotFound(_:)`` if the peripheral does not have
-    ///   it, ``BluetoothError/operationNotSupported`` if it neither notifies nor indicates, or
-    ///   ``BluetoothError/disconnected(reason:)`` if the link is down.
+    ///   it, ``BluetoothError/operationNotSupported`` if it neither notifies nor indicates,
+    ///   ``BluetoothError/operationFailed(underlying:)`` if the peripheral refuses the
+    ///   subscription, or ``BluetoothError/disconnected(reason:)`` if the link is down.
     public func notifications(
         for characteristic: CBUUID,
         bufferingPolicy: AsyncThrowingStream<Data, Error>.Continuation.BufferingPolicy = .bufferingNewest(256)

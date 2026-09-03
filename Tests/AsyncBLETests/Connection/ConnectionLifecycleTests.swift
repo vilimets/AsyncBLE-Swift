@@ -80,7 +80,9 @@ struct ConnectionNotificationTests {
 
         let thrown = await errorThrown { try await rig.connection.notifications(for: TestUUID.measurement) }
 
-        #expect(thrown == .connectionFailed)
+        // operationFailed, not connectionFailed: the peripheral refused the subscribe, and the
+        // link is still up.
+        #expect(thrown == .operationFailed)
         #expect(rig.sync { rig.core.subscriptions.count } == 0)
     }
 }

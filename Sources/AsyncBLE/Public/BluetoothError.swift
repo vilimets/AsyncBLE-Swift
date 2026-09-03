@@ -78,5 +78,22 @@ public enum BluetoothError: Error, Sendable {
     ///
     /// For example subscribing to a characteristic whose properties include neither `notify`
     /// nor `indicate`, or writing to one that is read-only.
+    ///
+    /// Raised before the request reaches the radio, by checking the characteristic's declared
+    /// properties. Contrast ``operationFailed(underlying:)``, which is the peripheral refusing
+    /// something it advertised as supported.
     case operationNotSupported
+
+    /// The peripheral refused an operation, or it failed on the wire.
+    ///
+    /// Thrown by ``Connection/read(_:)``, ``Connection/write(_:to:mode:)`` and
+    /// ``Connection/notifications(for:bufferingPolicy:)`` when CoreBluetooth reports an error
+    /// against a request the library had already issued — an ATT error such as insufficient
+    /// authentication or an application-defined error code from the peripheral's own firmware.
+    ///
+    /// The link is still up: this says the operation failed, not that the connection did.
+    ///
+    /// - Parameter underlying: The error CoreBluetooth reported. For an ATT failure this is a
+    ///   `CBATTError`, whose code carries the peripheral's reason.
+    case operationFailed(underlying: Error?)
 }

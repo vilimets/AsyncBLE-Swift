@@ -35,7 +35,7 @@ extension ConnectionCore: PeripheralSeamDelegate {
         if let pending = pendingRead, pending.uuid == characteristic.uuid {
             pendingRead = nil
             if let error {
-                pending.deliver(.failure(BluetoothError.connectionFailed(underlying: error)))
+                pending.deliver(.failure(BluetoothError.operationFailed(underlying: error)))
             } else {
                 // CoreBluetooth delivers a value by mutating the characteristic, not by passing
                 // it. An empty read is legal, so an absent value reads as empty rather than nil.
@@ -52,7 +52,7 @@ extension ConnectionCore: PeripheralSeamDelegate {
         guard let pending = pendingWrite, pending.uuid == characteristic.uuid else { return }
         pendingWrite = nil
         if let error {
-            pending.deliver(.failure(BluetoothError.connectionFailed(underlying: error)))
+            pending.deliver(.failure(BluetoothError.operationFailed(underlying: error)))
         } else {
             pending.deliver(.success(()))
         }
@@ -70,7 +70,7 @@ extension ConnectionCore: PeripheralSeamDelegate {
         }
         pendingNotify = nil
         if let error {
-            pending.deliver(.failure(BluetoothError.connectionFailed(underlying: error)))
+            pending.deliver(.failure(BluetoothError.operationFailed(underlying: error)))
         } else {
             pending.deliver(.success(()))
         }

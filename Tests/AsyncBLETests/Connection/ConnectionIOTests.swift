@@ -68,6 +68,53 @@ struct ConnectionIOTests {
         ))
     }
 
+    @Test("a read the peripheral refuses is an operation failure, not a connection failure")
+    func readRefused() async throws {
+        // The distinction the error taxonomy gained: an ATT error against a live link says the
+        // operation failed, not that the connection did.
+        let rig = ConnectionRig()
+        rig.connect()
+        rig.sync {
+            rig.peripheral.gatt.flatMap(\.all)
+                .first { $0.uuid == TestUUID.measurement }?
+                .readError = cbFailure
+        }
+
+        let thrown = await errorThrown { try await rig.connection.read(TestUUID.measurement) }
+
+        #expect(thrown == .operationFailed)
+        #expect(rig.state == .connected)
+    }
+
+    @Test("a write the peripheral refuses reports the same way")
+    func writeRefused() async throws {
+        let rig = ConnectionRig()
+        rig.connect()
+        rig.sync {
+            rig.peripheral.gatt.flatMap(\.all)
+                .first { $0.uuid == TestUUID.controlPoint }?
+                .writeError = cbFailure
+        }
+
+        let thrown = await errorThrown {
+            try await rig.connection.write(Data([0x01]), to: TestUUID.controlPoint)
+        }
+
+        #expect(thrown == .operationFailed)
+        #expect(rig.state == .connected)
+    }
+
+    @Test("discovery failing is an operation failure too")
+    func discoveryFailureIsAnOperationFailure() async {
+        let rig = ConnectionRig()
+        rig.connect()
+        rig.sync { rig.peripheral.servicesDiscoveryError = cbFailure }
+
+        let thrown = await errorThrown { try await rig.connection.read(TestUUID.measurement) }
+
+        #expect(thrown == .operationFailed)
+    }
+
     @Test("a write to a read-only characteristic never reaches the radio")
     func writeNotSupported() async {
         let rig = ConnectionRig()
