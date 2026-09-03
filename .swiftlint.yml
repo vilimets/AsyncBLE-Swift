@@ -52,6 +52,7 @@ identifier_name:
   excluded:
     - id
     - to
+    - io
 
 # This library is switch-heavy by design: the state machine's transition table and the effect
 # dispatch that mirrors it are flat, exhaustive switches. Counting each case as a branch flags

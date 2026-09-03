@@ -38,6 +38,9 @@ public actor Central {
     /// Where every timer in this central and its connections is armed.
     nonisolated let scheduler: Scheduler
 
+    /// The resolved logging configuration, shared with the bridge and every connection.
+    nonisolated let logFacility: LogFacility
+
     /// The links this central is holding open (PLAN.md §7 Q9).
     nonisolated let registry = ConnectionRegistry()
 
@@ -57,25 +60,36 @@ public actor Central {
     /// each await a definitive adapter state before acting, and throw
     /// ``BluetoothError/bluetoothUnavailable(reason:)`` if it is not usable.
     ///
-    /// - Parameter configuration: Connect timeout, reconnect policy, and power alert
-    ///   behavior. Defaults to a 10-second timeout and indefinite reconnection.
-    public init(configuration: Configuration = Configuration()) {
+    /// - Parameters:
+    ///   - configuration: Connect timeout, reconnect policy, and power alert behavior. Defaults
+    ///     to a 10-second timeout and indefinite reconnection.
+    ///   - logging: What the library logs, at what level, and where. Defaults to OSLog, on, at
+    ///     ``LogLevel/notice``.
+    public init(configuration: Configuration = Configuration(), logging: Logging = Logging()) {
         let library = LibraryQueue()
         let seam = LiveCentral(queue: library.dispatchQueue, showPowerAlert: configuration.showPowerAlert)
         self.init(
             configuration: configuration,
             seam: seam,
             library: library,
-            scheduler: QueueScheduler(queue: library.dispatchQueue)
+            scheduler: QueueScheduler(queue: library.dispatchQueue),
+            logFacility: LogFacility(logging)
         )
     }
 
     /// Creates a central over an arbitrary seam. Internal: this is the test injection point,
     /// not the public mock-injection API, which stays on the Planned list (PLAN.md §7 Q7).
-    init(configuration: Configuration, seam: CentralSeam, library: LibraryQueue, scheduler: Scheduler) {
+    init(
+        configuration: Configuration,
+        seam: CentralSeam,
+        library: LibraryQueue,
+        scheduler: Scheduler,
+        logFacility: LogFacility = .disabled
+    ) {
         self.configuration = configuration
         self.library = library
         self.scheduler = scheduler
+        self.logFacility = logFacility
         bridge = CentralDelegateBridge(seam: seam, library: library)
     }
 
