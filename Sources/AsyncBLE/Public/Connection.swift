@@ -55,7 +55,7 @@ public actor Connection {
     }
 
     /// The identifier of the peripheral at the other end.
-    public nonisolated let peripheralID: UUID
+    nonisolated public let peripheralID: UUID
 
     /// The engine: state machine, discovery cache, I/O queue and subscriptions.
     ///
@@ -72,7 +72,7 @@ public actor Connection {
     /// An implementation detail that has to be public because `Actor` says so. It is what makes
     /// this actor and CoreBluetooth's delegate callbacks mutually exclusive, which in turn is
     /// what makes ``withRaw(_:)`` safe (PLAN.md §7 Q6).
-    public nonisolated var unownedExecutor: UnownedSerialExecutor {
+    nonisolated public var unownedExecutor: UnownedSerialExecutor {
         library.unownedExecutor
     }
 
@@ -95,7 +95,7 @@ public actor Connection {
     ///     if case .reconnecting(let attempt) = state { print("waiting, arm \(attempt)") }
     /// }
     /// ```
-    public nonisolated var states: AsyncStream<ConnectionState> {
+    nonisolated public var states: AsyncStream<ConnectionState> {
         core.states.stream()
     }
 

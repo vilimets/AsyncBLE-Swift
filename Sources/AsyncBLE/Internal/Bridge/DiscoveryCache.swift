@@ -107,13 +107,11 @@ final class DiscoveryCache: @unchecked Sendable {
         guard case .discoveringCharacteristics(let remaining) = walk else { return }
 
         if error == nil {
-            for characteristic in service.characteristics {
-                // First service wins. A UUID appearing in two services is legal and rare, and
-                // the public API has no way to say which one was meant — so the library takes
-                // the first it walked rather than inventing a rule the caller cannot see.
-                if resolved[characteristic.uuid] == nil {
-                    resolved[characteristic.uuid] = characteristic
-                }
+            // First service wins. A UUID appearing in two services is legal and rare, and
+            // the public API has no way to say which one was meant — so the library takes
+            // the first it walked rather than inventing a rule the caller cannot see.
+            for characteristic in service.characteristics where resolved[characteristic.uuid] == nil {
+                resolved[characteristic.uuid] = characteristic
             }
         }
         // A service that failed to enumerate is skipped rather than failing the walk: the

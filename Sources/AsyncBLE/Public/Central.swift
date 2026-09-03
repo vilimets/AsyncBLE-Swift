@@ -26,7 +26,7 @@ import Foundation
 /// type (PLAN.md §3).
 public actor Central {
     /// The tunables this central was created with.
-    public nonisolated let configuration: Configuration
+    nonisolated public let configuration: Configuration
 
     /// The queue this actor, its connections, and CoreBluetooth's callbacks all share.
     nonisolated let library: LibraryQueue
@@ -52,7 +52,7 @@ public actor Central {
     /// An implementation detail that has to be public because `Actor` says so. It is what puts
     /// this actor, its connections, and CoreBluetooth's delegate callbacks in one execution
     /// context, so none of them can run at the same time as another.
-    public nonisolated var unownedExecutor: UnownedSerialExecutor {
+    nonisolated public var unownedExecutor: UnownedSerialExecutor {
         library.unownedExecutor
     }
 
@@ -110,7 +110,7 @@ public actor Central {
     ///     banner.isHidden = (state == .poweredOn)
     /// }
     /// ```
-    public nonisolated var adapterStates: AsyncStream<AdapterState> {
+    nonisolated public var adapterStates: AsyncStream<AdapterState> {
         bridge.adapterStates.stream()
     }
 

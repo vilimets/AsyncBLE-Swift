@@ -25,12 +25,22 @@ jobs:
           swift --version
 
       # Simulator names drift between runner images, so pick whatever iPhone is installed.
+      # Select by UDID, not by name: names like "iPhone SE (3rd generation)" carry a
+      # parenthesised suffix that is part of the name, and trimming at the "(" produces
+      # an "iPhone SE" that xcodebuild cannot resolve.
       - name: Pick a simulator
         run: |
-          name=$(xcrun simctl list devices available \
-            | grep -o 'iPhone [^(]*' | sed 's/ *$//' | tail -1)
-          echo "Using: $name"
-          echo "DESTINATION=platform=iOS Simulator,name=$name" >> "$GITHUB_ENV"
+          udid=$(xcrun simctl list devices available \
+            | grep -E '^[[:space:]]+iPhone' \
+            | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' \
+            | tail -1)
+          if [ -z "$udid" ]; then
+            echo "No available iPhone simulator on this runner:"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Using simulator $udid"
+          echo "DESTINATION=platform=iOS Simulator,id=$udid" >> "$GITHUB_ENV"
 
       - name: Resolve dependencies
         run: xcodebuild -resolvePackageDependencies -scheme "$SCHEME"
@@ -55,14 +65,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The example references the package by relative path, so this also proves the library
-      # still integrates the way a consumer would integrate it — not just that it compiles.
+      # Same UDID-not-name reasoning as the build-test job above.
       - name: Pick a simulator
         run: |
-          name=$(xcrun simctl list devices available \
-            | grep -o 'iPhone [^(]*' | sed 's/ *$//' | tail -1)
-          echo "DESTINATION=platform=iOS Simulator,name=$name" >> "$GITHUB_ENV"
+          udid=$(xcrun simctl list devices available \
+            | grep -E '^[[:space:]]+iPhone' \
+            | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' \
+            | tail -1)
+          if [ -z "$udid" ]; then
+            echo "No available iPhone simulator on this runner:"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Using simulator $udid"
+          echo "DESTINATION=platform=iOS Simulator,id=$udid" >> "$GITHUB_ENV"
 
+      # The example references the package by relative path, so this also proves the library
+      # still integrates the way a consumer would integrate it — not just that it compiles.
       - name: Build
         run: |
           set -o pipefail
@@ -78,8 +97,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned: `brew install swiftlint` tracks latest, so a SwiftLint release could turn
+      # this job red without a commit touching the repo.
       - name: Install SwiftLint
-        run: brew install swiftlint
+        env:
+          SWIFTLINT_VERSION: 0.65.1
+        run: |
+          curl -sSfL -o portable_swiftlint.zip \
+            "https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/portable_swiftlint.zip"
+          unzip -q portable_swiftlint.zip -d swiftlint-bin
+          echo "$PWD/swiftlint-bin" >> "$GITHUB_PATH"
+
+      - name: Show SwiftLint version
+        run: swiftlint version
 
       - name: Lint
         run: swiftlint lint --strict
