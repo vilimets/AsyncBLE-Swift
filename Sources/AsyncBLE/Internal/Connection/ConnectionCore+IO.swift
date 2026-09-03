@@ -62,6 +62,7 @@ extension ConnectionCore {
     /// Starts a read. The value arrives on the delegate, which is why this parks a callback
     /// rather than returning anything.
     func startRead(_ characteristic: CharacteristicSeam, _ deliver: @escaping (Result<Data, Error>) -> Void) {
+        ioLog.info("read \(characteristic.uuid)", ioMetadata(characteristic.uuid))
         pendingRead = PendingOperation(uuid: characteristic.uuid, deliver: deliver)
         peripheral.readValue(for: characteristic)
     }
@@ -72,6 +73,7 @@ extension ConnectionCore {
         to characteristic: CharacteristicSeam,
         _ deliver: @escaping (Result<Void, Error>) -> Void
     ) {
+        ioLog.info("write \(characteristic.uuid) \(data.count)B with response", ioMetadata(characteristic.uuid))
         pendingWrite = PendingOperation(uuid: characteristic.uuid, deliver: deliver)
         peripheral.writeValue(data, for: characteristic, mode: .withResponse)
     }
@@ -82,6 +84,9 @@ extension ConnectionCore {
     /// callback and nothing that could report a failure. Flow control is the only protection,
     /// which is why it is not optional.
     func sendWriteWithoutResponse(_ data: Data, to characteristic: CharacteristicSeam) {
+        ioLog.info(
+            "write \(characteristic.uuid) \(data.count)B without response", ioMetadata(characteristic.uuid)
+        )
         peripheral.writeValue(data, for: characteristic, mode: .withoutResponse)
     }
 
@@ -94,6 +99,7 @@ extension ConnectionCore {
     ///
     /// Without this, a tight write loop hands CoreBluetooth packets it silently drops.
     func awaitWriteReady(_ resume: @escaping (Result<Void, Error>) -> Void) {
+        ioLog.debug("write-without-response parked on flow control", peripheralMetadata)
         writeReadyWaiters.append(resume)
     }
 
@@ -126,8 +132,16 @@ extension ConnectionCore {
         on characteristic: CharacteristicSeam,
         _ deliver: @escaping (Result<Void, Error>) -> Void
     ) {
+        ioLog.info(
+            "\(enabled ? "subscribe" : "unsubscribe") \(characteristic.uuid)", ioMetadata(characteristic.uuid)
+        )
         pendingNotify = PendingOperation(uuid: characteristic.uuid, deliver: deliver)
         peripheral.setNotifyValue(enabled, for: characteristic)
+    }
+
+    /// Peripheral plus characteristic identifiers, as log metadata.
+    func ioMetadata(_ characteristic: CBUUID) -> [String: String] {
+        ["peripheral": peripheralID.uuidString, "characteristic": characteristic.uuidString]
     }
 
     /// The characteristics whose subscriptions are waiting for the link to come back.

@@ -34,11 +34,13 @@ final class SubscriptionRegistry: @unchecked Sendable {
     var onLastSubscriberRemoved: ((CBUUID) -> Void)?
 
     private let library: LibraryQueue
+    private let log: Log
     private var subscriptions: [CBUUID: [Subscription]] = [:]
     private var awaitingRestore: Set<CBUUID> = []
 
-    init(library: LibraryQueue) {
+    init(library: LibraryQueue, log: LogFacility = .disabled) {
         self.library = library
+        self.log = log.scoped(.reconnect)
     }
 
     /// The characteristics with at least one live subscriber.
@@ -108,6 +110,9 @@ final class SubscriptionRegistry: @unchecked Sendable {
     /// not. Throwing says so; finishing would be indistinguishable from a quiet sensor.
     func fail(_ uuid: CBUUID, with error: Error) {
         let ending = subscriptions.removeValue(forKey: uuid) ?? []
+        if !ending.isEmpty {
+            log.error("ending \(ending.count) subscriber(s) of \(uuid): \(error)")
+        }
         awaitingRestore.remove(uuid)
         for subscription in ending {
             subscription.continuation.finish(throwing: error)

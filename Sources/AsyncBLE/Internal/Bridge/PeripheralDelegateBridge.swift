@@ -35,11 +35,14 @@ extension ConnectionCore: PeripheralSeamDelegate {
         if let pending = pendingRead, pending.uuid == characteristic.uuid {
             pendingRead = nil
             if let error {
+                ioLog.error("read \(characteristic.uuid) failed: \(error)", ioMetadata(characteristic.uuid))
                 pending.deliver(.failure(BluetoothError.operationFailed(underlying: error)))
             } else {
                 // CoreBluetooth delivers a value by mutating the characteristic, not by passing
                 // it. An empty read is legal, so an absent value reads as empty rather than nil.
-                pending.deliver(.success(characteristic.value ?? Data()))
+                let value = characteristic.value ?? Data()
+                ioLog.debug("read \(characteristic.uuid) → \(value.count)B", ioMetadata(characteristic.uuid))
+                pending.deliver(.success(value))
             }
             return
         }
@@ -52,8 +55,10 @@ extension ConnectionCore: PeripheralSeamDelegate {
         guard let pending = pendingWrite, pending.uuid == characteristic.uuid else { return }
         pendingWrite = nil
         if let error {
+            ioLog.error("write \(characteristic.uuid) failed: \(error)", ioMetadata(characteristic.uuid))
             pending.deliver(.failure(BluetoothError.operationFailed(underlying: error)))
         } else {
+            ioLog.debug("write \(characteristic.uuid) acknowledged", ioMetadata(characteristic.uuid))
             pending.deliver(.success(()))
         }
     }
@@ -70,8 +75,12 @@ extension ConnectionCore: PeripheralSeamDelegate {
         }
         pendingNotify = nil
         if let error {
+            ioLog.error(
+                "subscription \(characteristic.uuid) failed: \(error)", ioMetadata(characteristic.uuid)
+            )
             pending.deliver(.failure(BluetoothError.operationFailed(underlying: error)))
         } else {
+            ioLog.debug("subscription \(characteristic.uuid) confirmed", ioMetadata(characteristic.uuid))
             pending.deliver(.success(()))
         }
     }

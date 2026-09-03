@@ -105,8 +105,8 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
         self.scheduler = scheduler
         self.log = log
         machine = ConnectionStateMachine(policy: policy)
-        cache = DiscoveryCache(peripheral: peripheral)
-        subscriptions = SubscriptionRegistry(library: library)
+        cache = DiscoveryCache(peripheral: peripheral, log: log)
+        subscriptions = SubscriptionRegistry(library: library, log: log)
         states = Broadcaster(machine.state)
 
         peripheral.seamDelegate = self

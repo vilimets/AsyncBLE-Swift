@@ -34,12 +34,14 @@ final class DiscoveryCache: @unchecked Sendable {
     typealias Deliver = (Result<CharacteristicSeam, Error>) -> Void
 
     private let peripheral: PeripheralSeam
+    private let log: Log
     private var resolved: [CBUUID: CharacteristicSeam] = [:]
     private var waiters: [(uuid: CBUUID, deliver: Deliver)] = []
     private var walk: Walk = .notStarted
 
-    init(peripheral: PeripheralSeam) {
+    init(peripheral: PeripheralSeam, log: LogFacility = .disabled) {
         self.peripheral = peripheral
+        self.log = log.scoped(.discovery)
     }
 
     /// Whether a full walk has completed on the current link.
@@ -59,6 +61,7 @@ final class DiscoveryCache: @unchecked Sendable {
         }
         waiters.append((uuid, deliver))
         guard walk == .notStarted else { return }
+        log.info("walking discovery for \(uuid)")
         walk = .discoveringServices
         peripheral.discoverServices(nil)
     }
@@ -78,6 +81,7 @@ final class DiscoveryCache: @unchecked Sendable {
         guard walk == .discoveringServices else { return }
 
         if let error {
+            log.error("service discovery failed: \(error)")
             fail(with: BluetoothError.operationFailed(underlying: error))
             walk = .notStarted
             return
@@ -91,6 +95,7 @@ final class DiscoveryCache: @unchecked Sendable {
             return
         }
 
+        log.debug("discovered \(services.count) service(s)")
         walk = .discoveringCharacteristics(remaining: services.count)
         for service in services {
             peripheral.discoverCharacteristics(nil, for: service)
@@ -138,6 +143,9 @@ final class DiscoveryCache: @unchecked Sendable {
     /// straggler — the connection fails its in-flight operations first — so one is failed
     /// rather than left suspended forever.
     func invalidate() {
+        if walk != .notStarted {
+            log.notice("discovery cache flushed")
+        }
         resolved.removeAll()
         walk = .notStarted
         if !waiters.isEmpty {
@@ -147,6 +155,7 @@ final class DiscoveryCache: @unchecked Sendable {
 
     private func finishWalk() {
         walk = .complete
+        log.info("discovery complete: \(resolved.count) characteristic(s) cached")
         let pending = waiters
         waiters.removeAll()
         for waiter in pending {
@@ -158,6 +167,7 @@ final class DiscoveryCache: @unchecked Sendable {
         if let characteristic = resolved[uuid] {
             deliver(.success(characteristic))
         } else {
+            log.info("characteristic \(uuid) not found on the peripheral")
             deliver(.failure(BluetoothError.characteristicNotFound(uuid)))
         }
     }

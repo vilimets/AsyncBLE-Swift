@@ -129,6 +129,7 @@ public actor Connection {
         try core.ensureConnected()
         let resolved = try await resolveCharacteristic(characteristic)
         guard resolved.properties.contains(.read) else {
+            core.ioLog.error("read \(characteristic) rejected: not readable", core.ioMetadata(characteristic))
             throw BluetoothError.operationNotSupported
         }
         try core.ensureConnected()
@@ -175,6 +176,10 @@ public actor Connection {
         switch mode {
         case .withResponse:
             guard resolved.properties.contains(.write) else {
+                core.ioLog.error(
+                    "write \(characteristic) rejected: not writable with response",
+                    core.ioMetadata(characteristic)
+                )
                 throw BluetoothError.operationNotSupported
             }
             try await suspend { deliver in
@@ -183,6 +188,10 @@ public actor Connection {
 
         case .withoutResponse:
             guard resolved.properties.contains(.writeWithoutResponse) else {
+                core.ioLog.error(
+                    "write \(characteristic) rejected: not writable without response",
+                    core.ioMetadata(characteristic)
+                )
                 throw BluetoothError.operationNotSupported
             }
             // Flow control. CoreBluetooth drops a write-without-response it has no room for,
@@ -236,6 +245,10 @@ public actor Connection {
         try core.ensureConnected()
         let resolved = try await resolveCharacteristic(characteristic)
         guard resolved.properties.contains(.notify) || resolved.properties.contains(.indicate) else {
+            core.ioLog.error(
+                "subscribe \(characteristic) rejected: neither notify nor indicate",
+                core.ioMetadata(characteristic)
+            )
             throw BluetoothError.operationNotSupported
         }
         try core.ensureConnected()
