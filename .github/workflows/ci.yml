@@ -49,6 +49,29 @@ jobs:
             -scheme "$SCHEME" \
             -destination "$DESTINATION"
 
+  example:
+    name: Build example app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # The example references the package by relative path, so this also proves the library
+      # still integrates the way a consumer would integrate it — not just that it compiles.
+      - name: Pick a simulator
+        run: |
+          name=$(xcrun simctl list devices available \
+            | grep -o 'iPhone [^(]*' | sed 's/ *$//' | tail -1)
+          echo "DESTINATION=platform=iOS Simulator,name=$name" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Example/AsyncBLEExample.xcodeproj \
+            -scheme AsyncBLEExample \
+            -destination "$DESTINATION" \
+            CODE_SIGNING_ALLOWED=NO
+
   lint:
     name: SwiftLint
     runs-on: macos-15
