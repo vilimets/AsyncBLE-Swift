@@ -89,7 +89,8 @@ extension Central {
             bridge: bridge,
             library: library,
             scheduler: scheduler,
-            policy: configuration.reconnectPolicy
+            policy: configuration.reconnectPolicy,
+            log: logFacility
         )
         let connection = Connection(core: core)
         core.onTerminated = { [weak registry] in

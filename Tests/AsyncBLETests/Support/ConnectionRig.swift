@@ -18,11 +18,19 @@ final class ConnectionRig: @unchecked Sendable {
     let core: ConnectionCore
     let connection: Connection
 
+    /// The log handler, when the rig was built with `recording:`. Assert on `.records`.
+    let logRecorder: RecordingLogHandler?
+
     init(
         policy: ReconnectPolicy = .waitIndefinitely(),
         gatt: [FakeService]? = nil,
-        responseMode: FakePeripheral.ResponseMode = .immediate
+        responseMode: FakePeripheral.ResponseMode = .immediate,
+        recording: Bool = false
     ) {
+        let recorder = recording ? RecordingLogHandler() : nil
+        logRecorder = recorder
+        let log = recorder.map { LogFacility.recording($0) } ?? .disabled
+
         central = FakeCentral()
         peripheral = FakePeripheral(gatt: gatt ?? ConnectionRig.defaultGATT())
         peripheral.responseMode = responseMode
@@ -33,11 +41,16 @@ final class ConnectionRig: @unchecked Sendable {
             bridge: bridge,
             library: library,
             scheduler: scheduler,
-            policy: policy
+            policy: policy,
+            log: log
         )
         connection = Connection(core: core)
         library.sync { bridge.register(core) }
     }
+
+    /// The records the library has logged so far. Empty unless the rig was built with
+    /// `recording: true`.
+    var logRecords: [LogRecord] { logRecorder?.records ?? [] }
 
     /// A heart-rate service and a battery service, which is enough shape for any test here.
     static func defaultGATT() -> [FakeService] {

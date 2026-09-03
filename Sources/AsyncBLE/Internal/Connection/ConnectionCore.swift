@@ -47,6 +47,24 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
     private let scheduler: Scheduler
     private var machine: ConnectionStateMachine
 
+    /// Logging, shared with the owning ``Central``. See PLAN.md §7 Q22.
+    let log: LogFacility
+
+    /// Logging bound to the `connection` category — state-machine transitions and effects.
+    var connLog: Log { log.scoped(.connection) }
+
+    /// Logging bound to the `io` category — reads, writes, notification subscriptions.
+    var ioLog: Log { log.scoped(.io) }
+
+    /// Logging bound to the `reconnect` category — arming, deadlines, subscription restore.
+    var reconnectLog: Log { log.scoped(.reconnect) }
+
+    /// Logging bound to the `discovery` category — the service/characteristic walk.
+    var discoveryLog: Log { log.scoped(.discovery) }
+
+    /// The peripheral identifier, as log metadata.
+    var peripheralMetadata: [String: String] { ["peripheral": peripheralID.uuidString] }
+
     private var connectTimer: ScheduledWork?
     private var giveUpTimer: ScheduledWork?
     private var reArmTimer: ScheduledWork?
@@ -77,13 +95,15 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
         bridge: CentralDelegateBridge,
         library: LibraryQueue,
         scheduler: Scheduler,
-        policy: ReconnectPolicy
+        policy: ReconnectPolicy,
+        log: LogFacility = .disabled
     ) {
         peripheralID = peripheral.identifier
         self.peripheral = peripheral
         self.bridge = bridge
         self.library = library
         self.scheduler = scheduler
+        self.log = log
         machine = ConnectionStateMachine(policy: policy)
         cache = DiscoveryCache(peripheral: peripheral)
         subscriptions = SubscriptionRegistry(library: library)
@@ -176,8 +196,25 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
             apply(effect)
         }
 
-        guard machine.state != before else { return }
+        guard machine.state != before else {
+            connLog.debug("\(before) ignored \(event)")
+            return
+        }
+        logTransition(from: before, on: event, to: machine.state)
         publish(machine.state)
+    }
+
+    /// Logs a state transition — `notice` when the machine enters `reconnecting` or a terminal
+    /// `disconnected`, `info` for the routine connecting/connected steps.
+    private func logTransition(from before: ConnectionState, on event: ConnectionEvent, to after: ConnectionState) {
+        let message = "\(before) --\(event)--> \(after)"
+        let metadata = ["peripheral": peripheralID.uuidString]
+        switch after {
+        case .reconnecting, .disconnected(.some):
+            connLog.notice(message, metadata)
+        case .connecting, .connected, .disconnected(nil):
+            connLog.info(message, metadata)
+        }
     }
 
     private func publish(_ state: ConnectionState) {
@@ -221,6 +258,7 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
     // MARK: Effects
 
     private func apply(_ effect: ConnectionEffect) {
+        connLog.debug("effect \(effect)", peripheralMetadata)
         switch effect {
         case .armConnect:
             bridge.seam.connect(peripheral)
@@ -234,13 +272,21 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
             connectTimer = nil
 
         case .startGiveUpDeadline(let duration):
-            giveUpTimer = schedule(duration) { $0.handle(.giveUpDeadlineReached) }
+            reconnectLog.notice("holding the link open, giving up after \(duration)", peripheralMetadata)
+            giveUpTimer = schedule(duration) {
+                $0.reconnectLog.notice("give-up deadline reached, abandoning the link", $0.peripheralMetadata)
+                $0.handle(.giveUpDeadlineReached)
+            }
         case .cancelGiveUpDeadline:
             giveUpTimer?.cancel()
             giveUpTimer = nil
 
         case .startReArmTimer(let interval):
-            reArmTimer = schedule(interval) { $0.handle(.reArmTimerFired) }
+            reconnectLog.info("re-arm cadence: every \(interval)", peripheralMetadata)
+            reArmTimer = schedule(interval) {
+                $0.reconnectLog.info("re-arming the pending connect", $0.peripheralMetadata)
+                $0.handle(.reArmTimerFired)
+            }
         case .cancelReArmTimer:
             reArmTimer?.cancel()
             reArmTimer = nil
@@ -272,6 +318,11 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
     /// on a CoreBluetooth callback that is not coming. Missing any one of them strands a caller
     /// forever, which is the failure mode this library exists to not have.
     private func failAllOperations(with error: BluetoothError) {
+        let hadWork = pendingRead != nil || pendingWrite != nil || pendingNotify != nil
+            || !writeReadyWaiters.isEmpty || !ioQueue.isEmpty || cache.waiterCount > 0
+        if hadWork {
+            ioLog.info("failing in-flight I/O: \(error)", peripheralMetadata)
+        }
         ioQueue.failAll(with: error)
         cache.failWaiters(with: error)
 
@@ -299,6 +350,10 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
     /// asked for but is entitled to.
     private func startSubscriptionRestore() {
         guard !subscriptions.pendingRestore.isEmpty else { return }
+        reconnectLog.notice(
+            "restoring \(subscriptions.pendingRestore.count) subscription(s) after the reconnect",
+            peripheralMetadata
+        )
         let ticket = ioQueue.enqueue()
         Task { [weak connection] in
             await connection?.restoreSubscriptions(holding: ticket)

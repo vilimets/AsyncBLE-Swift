@@ -65,7 +65,11 @@ extension Connection {
                     core.setNotify(true, on: characteristic, resume)
                 }
                 core.markRestored(uuid)
+                core.reconnectLog.debug("restored subscription \(uuid)", core.peripheralMetadata)
             } catch {
+                core.reconnectLog.error(
+                    "subscription restore failed for \(uuid): \(error)", core.peripheralMetadata
+                )
                 core.failSubscriptions(uuid, with: error)
             }
         }
