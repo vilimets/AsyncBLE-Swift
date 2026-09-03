@@ -12,6 +12,7 @@ extension Central {
     /// during that window would make every app's first call a coin toss.
     func requirePoweredOn() async throws {
         guard case .unavailable(let reason) = await definitiveAdapterState() else { return }
+        log.error("bluetooth unavailable: \(reason)")
         throw BluetoothError.bluetoothUnavailable(reason: reason)
     }
 
@@ -40,6 +41,7 @@ extension Central {
         if core.state == .connected {
             // Already up. A link is device-wide, so this caller gets the one that exists
             // (PLAN.md §7 Q3) rather than a second one.
+            log.debug("connect \(peripheralID): returning the live connection", ["peripheral": peripheralID.uuidString])
             return connection
         }
 
@@ -47,10 +49,15 @@ extension Central {
         // state machine's timeout, which is what actually withdraws the CoreBluetooth request.
         // Joining one — or joining a reconnect wait, which may be indefinite — cannot restart
         // that, so the caller carries its own deadline and detaches when it expires.
+        let metadata = ["peripheral": peripheralID.uuidString]
         var callerTimeout = timeout
         if case .disconnected = core.state {
+            let deadline = timeout.map { "\($0)" } ?? "none"
+            log.info("connect \(peripheralID) requested (timeout: \(deadline))", metadata)
             core.requestConnect(timeout: timeout)
             callerTimeout = nil
+        } else {
+            log.debug("connect \(peripheralID): coalescing onto the attempt in flight", metadata)
         }
 
         try await waitForLink(on: core, timeout: callerTimeout)
@@ -81,6 +88,10 @@ extension Central {
         guard let peripheral = bridge.seam.peripheral(withID: peripheralID) else {
             // CoreBluetooth has never heard of this identifier — nothing has scanned for it and
             // no earlier session connected to it, so there is nothing to connect to.
+            log.error(
+                "connect \(peripheralID): CoreBluetooth has no peripheral with this identifier",
+                ["peripheral": peripheralID.uuidString]
+            )
             throw BluetoothError.connectionFailed(underlying: nil)
         }
 

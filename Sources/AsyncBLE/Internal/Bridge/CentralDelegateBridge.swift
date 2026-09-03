@@ -44,13 +44,17 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
     let adapterStates: Broadcaster<AdapterState>
 
     private let library: LibraryQueue
+    private let log: Log
+    private let bridgeLog: Log
     private var scans: [UUID: ScanSession] = [:]
     private var activePlan: ScanPlan?
     private var sinks: [UUID: ConnectionSink] = [:]
 
-    init(seam: CentralSeam, library: LibraryQueue) {
+    init(seam: CentralSeam, library: LibraryQueue, log: LogFacility = .disabled) {
         self.seam = seam
         self.library = library
+        self.log = log.scoped(.central)
+        bridgeLog = log.scoped(.bridge)
         adapterStates = Broadcaster(seam.adapterState)
         seam.seamDelegate = self
     }
@@ -64,6 +68,10 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
     /// stops the radio — a scan that outlives its consumer is a battery bug.
     func startScan(_ options: ScanOptions) -> AsyncStream<Discovery> {
         library.assertIsolated()
+        log.notice(
+            "scan requested (filter: \(options.services?.count ?? 0) service(s), "
+                + "duplicates: \(options.allowDuplicates))"
+        )
         return AsyncStream { continuation in
             let session = ScanSession(options: options, continuation: continuation)
             scans[session.id] = session
@@ -95,6 +103,7 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
         guard !scans.isEmpty else {
             if activePlan != nil {
                 activePlan = nil
+                log.notice("radio scan stopped: no sessions left")
                 seam.stopScan()
             }
             return
@@ -104,6 +113,10 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
         // second session with the same filter must not disturb the first.
         guard plan != activePlan else { return }
         activePlan = plan
+        log.notice(
+            "radio scan started (union of \(scans.count) session(s): "
+                + "\(plan.services?.count ?? 0) service(s), duplicates: \(plan.allowDuplicates))"
+        )
         seam.scanForPeripherals(services: plan.services, allowDuplicates: plan.allowDuplicates)
     }
 
@@ -134,6 +147,7 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
 
     func centralSeamDidUpdateAdapterState(_ seam: CentralSeam) {
         let state = seam.adapterState
+        log.notice("adapter → \(state)")
         adapterStates.send(state)
 
         if case .unavailable = state {
@@ -161,16 +175,23 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
             rssi: rssi,
             advertisementData: advertisement
         )
+        bridgeLog.debug(
+            "didDiscover \(peripheral.identifier) rssi=\(rssi.map(String.init) ?? "nil")",
+            ["peripheral": peripheral.identifier.uuidString]
+        )
         for session in scans.values {
             session.offer(discovery)
         }
     }
 
     func centralSeam(_ seam: CentralSeam, didConnect peripheral: PeripheralSeam) {
+        let metadata = ["peripheral": peripheral.identifier.uuidString]
+        bridgeLog.debug("didConnect \(peripheral.identifier)", metadata)
         guard let sink = sinks[peripheral.identifier] else {
             // Nobody is waiting for this link. It is the race in PLAN.md §7 Q10: the last
             // caller cancelled, the attempt was withdrawn, and it landed anyway. Close it —
             // by Q9 nothing else ever would.
+            log.notice("connect landed with no waiter, closing (PLAN.md §7 Q10)", metadata)
             seam.cancelConnection(peripheral)
             return
         }
@@ -178,10 +199,18 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
     }
 
     func centralSeam(_ seam: CentralSeam, didFailToConnect peripheral: PeripheralSeam, error: NSError?) {
+        bridgeLog.debug(
+            "didFailToConnect \(peripheral.identifier): \(error.map(String.init(describing:)) ?? "no error")",
+            ["peripheral": peripheral.identifier.uuidString]
+        )
         sinks[peripheral.identifier]?.handleFailedToConnect(error)
     }
 
     func centralSeam(_ seam: CentralSeam, didDisconnect peripheral: PeripheralSeam, error: NSError?) {
+        bridgeLog.debug(
+            "didDisconnect \(peripheral.identifier): \(error.map(String.init(describing:)) ?? "no error")",
+            ["peripheral": peripheral.identifier.uuidString]
+        )
         sinks[peripheral.identifier]?.handleDisconnected(error)
     }
 }

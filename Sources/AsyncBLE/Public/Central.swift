@@ -41,6 +41,9 @@ public actor Central {
     /// The resolved logging configuration, shared with the bridge and every connection.
     nonisolated let logFacility: LogFacility
 
+    /// Logging bound to the `central` category.
+    nonisolated var log: Log { logFacility.scoped(.central) }
+
     /// The links this central is holding open (PLAN.md §7 Q9).
     nonisolated let registry = ConnectionRegistry()
 
@@ -90,7 +93,7 @@ public actor Central {
         self.library = library
         self.scheduler = scheduler
         self.logFacility = logFacility
-        bridge = CentralDelegateBridge(seam: seam, library: library)
+        bridge = CentralDelegateBridge(seam: seam, library: library, log: logFacility)
     }
 
     /// The stream of Bluetooth adapter availability.
@@ -252,7 +255,11 @@ public actor Central {
     public func disconnectAll() async {
         // Snapshotted first: each disconnect reaches terminal and removes itself from the
         // registry, which would otherwise be mutating out from under the iteration.
-        for connection in registry.all {
+        let open = registry.all
+        if !open.isEmpty {
+            log.notice("disconnecting all \(open.count) connection(s)")
+        }
+        for connection in open {
             await connection.disconnect()
         }
     }

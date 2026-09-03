@@ -15,13 +15,29 @@ final class CentralRig: @unchecked Sendable {
     let peripheral: FakePeripheral
     let central: Central
 
-    init(configuration: Central.Configuration = Central.Configuration(), adapterState: AdapterState = .poweredOn) {
+    /// The log handler, when the rig was built with `recording: true`.
+    let logRecorder: RecordingLogHandler?
+
+    init(
+        configuration: Central.Configuration = Central.Configuration(),
+        adapterState: AdapterState = .poweredOn,
+        recording: Bool = false
+    ) {
+        let recorder = recording ? RecordingLogHandler() : nil
+        logRecorder = recorder
+        let log = recorder.map { LogFacility.recording($0) } ?? .disabled
+
         radio = FakeCentral(adapterState: adapterState)
         peripheral = FakePeripheral(gatt: ConnectionRig.defaultGATT())
         peripheral.responseMode = .immediate
         radio.knownPeripherals[peripheral.identifier] = peripheral
-        central = Central(configuration: configuration, seam: radio, library: library, scheduler: scheduler)
+        central = Central(
+            configuration: configuration, seam: radio, library: library, scheduler: scheduler, logFacility: log
+        )
     }
+
+    /// The records the library has logged so far.
+    var logRecords: [LogRecord] { logRecorder?.records ?? [] }
 
     var peripheralID: UUID { peripheral.identifier }
 
