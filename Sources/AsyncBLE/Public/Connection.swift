@@ -10,7 +10,7 @@ import Foundation
 
 /// A live link to one peripheral.
 ///
-/// Created by ``Central/connect(_:timeout:)``, which returns only once the link is up. Address
+/// Created by ``Central/connect(_:timeout:)-(UUID,_)``, which returns only once the link is up. Address
 /// characteristics by UUID and the connection discovers them for you, caching the result for
 /// as long as the link lives.
 ///

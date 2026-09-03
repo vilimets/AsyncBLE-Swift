@@ -7,7 +7,7 @@ Add the package, scan for a peripheral, connect to it, and read a characteristic
 > Note: The API ships in 0.1.0 and this article is written against it as it lands. Code samples
 > arrive with the Phase 1 API surface; the shape below is the contract the design is held to.
 
-## Installation
+### Installation
 
 Add AsyncBLE to your `Package.swift`:
 
@@ -30,7 +30,7 @@ Then add it to your target:
 
 In Xcode, use File > Add Package Dependencies and paste the same URL.
 
-## Permissions
+### Permissions
 
 iOS requires a usage description before it will let your app touch Bluetooth. Add
 `NSBluetoothAlwaysUsageDescription` to your `Info.plist` and write a sentence a user would
@@ -38,7 +38,7 @@ actually understand — the string is shown in the system prompt.
 
 Bluetooth does not work in the simulator. Test on a device.
 
-## The shape of a session
+### The shape of a session
 
 A typical session has four steps, and AsyncBLE keeps each one to a single expression:
 
@@ -56,7 +56,7 @@ Bluetooth being switched off is not an exception to handle once — it is a stat
 `adapterStates` on the central tells you when it changes, which is what a "Bluetooth is off"
 banner should be driven by.
 
-## Next steps
+### Next steps
 
 - <doc:ConnectionLifecycle> explains the states a connection moves through and when.
 - <doc:Reconnection> covers what happens after the link drops.

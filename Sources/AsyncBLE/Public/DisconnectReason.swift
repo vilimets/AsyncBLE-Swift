@@ -16,7 +16,7 @@ public enum DisconnectReason: Sendable, Equatable {
     /// The connect attempt exceeded its timeout.
     ///
     /// CoreBluetooth has no native connect timeout — a `connect` request stays pending
-    /// forever — so this reason only exists because ``Central/connect(_:timeout:)`` imposes
+    /// forever — so this reason only exists because ``Central/connect(_:timeout:)-(UUID,_)`` imposes
     /// one. ``Central/connectWhenAvailable(_:)`` never produces it.
     case connectTimeout
 

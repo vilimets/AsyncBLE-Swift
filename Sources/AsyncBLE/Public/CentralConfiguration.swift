@@ -19,7 +19,7 @@ extension Central {
         /// indefinitely against a peripheral that is off or out of range. This library imposes
         /// one, which is the whole reason the setting exists.
         ///
-        /// Applies to ``Central/connect(_:timeout:)`` only. Reconnection after a drop, and
+        /// Applies to ``Central/connect(_:timeout:)-(UUID,_)`` only. Reconnection after a drop, and
         /// ``Central/connectWhenAvailable(_:)``, both deliberately rely on the OS keeping the
         /// request pending instead.
         public var connectTimeout: Duration

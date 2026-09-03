@@ -57,16 +57,14 @@ hardware and without mocking Apple's classes.
 
 - <doc:EscapeHatch>
 
-### Diagnostics
+### Seeing what happened
 
-- <doc:Logging>
-
-<!-- Symbol curation lands with the Phase 1 API. Uncomment as the types appear, so the
-     documentation build stays warning-free in the meantime.
+- <doc:Diagnostics>
 
 ### Scanning
 
 - ``Central``
+- ``ScanOptions``
 - ``Discovery``
 - ``AdvertisementData``
 
@@ -76,14 +74,23 @@ hardware and without mocking Apple's classes.
 - ``ConnectionState``
 - ``DisconnectReason``
 - ``AdapterState``
+- ``Connection/WriteMode``
 
 ### Configuration
 
 - ``Central/Configuration``
 - ``ReconnectPolicy``
 
+### Logging
+
+- ``Logging``
+- ``LogLevel``
+- ``LogCategory``
+- ``LogRecord``
+- ``LogHandler``
+- ``OSLogHandler``
+
 ### Errors
 
 - ``BluetoothError``
 - ``UnavailableReason``
--->

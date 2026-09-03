@@ -1,4 +1,4 @@
-# Logging
+# Logging and diagnostics
 
 See what the library is doing — and why — without patching it.
 

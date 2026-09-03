@@ -59,7 +59,7 @@ public actor Central {
     /// Creates a central and begins bringing up the Bluetooth adapter.
     ///
     /// The adapter takes a moment to report its state, and on first use the system asks the
-    /// user for permission. You do not need to wait: ``scan(_:)`` and ``connect(_:timeout:)``
+    /// user for permission. You do not need to wait: ``scan(_:)`` and ``connect(_:timeout:)-(UUID,_)``
     /// each await a definitive adapter state before acting, and throw
     /// ``BluetoothError/bluetoothUnavailable(reason:)`` if it is not usable.
     ///
@@ -188,7 +188,7 @@ public actor Central {
 
     /// Connects to a peripheral found while scanning.
     ///
-    /// Convenience for ``connect(_:timeout:)`` taking the discovery's identifier.
+    /// Convenience for ``connect(_:timeout:)-(UUID,_)`` taking the discovery's identifier.
     ///
     /// - Parameters:
     ///   - discovery: A peripheral reported by ``scan(_:)``.
@@ -208,7 +208,7 @@ public actor Central {
     /// app launch: no scanning, no polling, and the radio scheduling is the OS's problem.
     ///
     /// Cancel the calling task to stop waiting. There is no timeout by design; if you want a
-    /// deadline, use ``connect(_:timeout:)``.
+    /// deadline, use ``connect(_:timeout:)-(UUID,_)``.
     ///
     /// - Parameter peripheralID: The peripheral's identifier, typically persisted from an
     ///   earlier session.

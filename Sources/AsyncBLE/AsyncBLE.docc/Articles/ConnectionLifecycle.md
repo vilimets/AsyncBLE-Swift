@@ -30,7 +30,7 @@ handler. `Connection` is an actor, and the stream is the only channel out. Itera
 Because state is a stream rather than a property you poll, there is no window where your UI and
 the connection disagree.
 
-## Deliberate disconnect versus link drop
+### Deliberate disconnect versus link drop
 
 This is the distinction most wrappers get wrong, and it is worth understanding.
 
@@ -51,7 +51,7 @@ are no zombie timers waking up later to reconnect a device you deliberately let 
 > Important: A link is a device-wide resource, not a per-caller session. Two parts of your app
 > connecting to the same peripheral share one connection, so `disconnect()` ends it for both.
 
-## Why a pure state machine
+### Why a pure state machine
 
 The transition table is a value-in, value-out function: it takes the current state and an event,
 and returns the next state plus a list of effects for the caller to perform. It does not import

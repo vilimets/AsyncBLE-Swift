@@ -48,7 +48,7 @@ public enum BluetoothError: Error, Sendable {
     /// The connect attempt exceeded ``Central/Configuration/connectTimeout``.
     ///
     /// The pending CoreBluetooth connect request is cancelled before this is thrown, so no
-    /// late connection can arrive afterwards. Only ``Central/connect(_:timeout:)`` throws this;
+    /// late connection can arrive afterwards. Only ``Central/connect(_:timeout:)-(UUID,_)`` throws this;
     /// ``Central/connectWhenAvailable(_:)`` has no deadline by design.
     case connectTimeout
 

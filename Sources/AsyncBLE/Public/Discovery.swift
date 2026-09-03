@@ -8,7 +8,7 @@ import Foundation
 /// ``ScanOptions/allowDuplicates`` produces a new value each time the peripheral advertises,
 /// which is how you track RSSI over time.
 ///
-/// Pass ``peripheralID`` — or the discovery itself — to ``BLECentral/connect(_:timeout:)``.
+/// Pass ``peripheralID`` — or the discovery itself — to ``Central/connect(_:timeout:)-(UUID,_)``.
 public struct Discovery: Sendable, Equatable, Identifiable {
     /// The peripheral's identifier, stable for this device across app launches.
     ///
