@@ -34,4 +34,12 @@ final class ConnectionRegistry: @unchecked Sendable {
 
     /// How many links this central is holding.
     var count: Int { connections.count }
+
+    /// Every connection being held, in a stable order.
+    ///
+    /// Sorted by identifier rather than left in dictionary order, so that
+    /// ``Central/activeConnections`` does not shuffle between calls for no reason.
+    var all: [Connection] {
+        connections.values.sorted { $0.peripheralID.uuidString < $1.peripheralID.uuidString }
+    }
 }

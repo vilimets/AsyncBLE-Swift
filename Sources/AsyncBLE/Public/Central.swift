@@ -202,4 +202,44 @@ public actor Central {
     public func connectWhenAvailable(_ peripheralID: UUID) async throws -> Connection {
         try await establish(peripheralID, timeout: nil)
     }
+
+    /// Every connection this central is currently holding.
+    ///
+    /// A link lives until something explicitly closes it — dropping your last reference does
+    /// not (PLAN.md §7 Q9). The cost of that rule is that a link nobody closes stays open, and
+    /// this is how you find one: an inventory of what the radio is actually doing.
+    ///
+    /// Includes connections that are `connecting` or `reconnecting`, not only live links,
+    /// because those hold a pending CoreBluetooth request and are equally worth auditing. A
+    /// connection drops off this list the moment it reaches `disconnected` for good.
+    ///
+    /// The order is stable across calls but not otherwise meaningful.
+    ///
+    /// ```swift
+    /// for connection in await central.activeConnections {
+    ///     print(connection.peripheralID, await connection.state)
+    /// }
+    /// ```
+    public var activeConnections: [Connection] {
+        registry.all
+    }
+
+    /// Closes every link this central is holding, and stops waiting for any of them.
+    ///
+    /// The same contract as ``Connection/disconnect()``, applied to all of them: reconnect
+    /// policies are not consulted, in-flight and queued I/O fails, and notification streams
+    /// finish. Returns once every connection has been asked to close.
+    ///
+    /// > Important: A link is device-wide, not per-caller. This ends every link this central
+    /// > holds, including any that another part of your app opened and is still using.
+    ///
+    /// Useful at logout, on entering a background state you do not want radio activity in, or
+    /// in a test's teardown. Idempotent, and safe to call when there is nothing to close.
+    public func disconnectAll() async {
+        // Snapshotted first: each disconnect reaches terminal and removes itself from the
+        // registry, which would otherwise be mutating out from under the iteration.
+        for connection in registry.all {
+            await connection.disconnect()
+        }
+    }
 }

@@ -25,6 +25,25 @@ final class CentralRig: @unchecked Sendable {
 
     var peripheralID: UUID { peripheral.identifier }
 
+    /// Registers a second peripheral the central can also connect to.
+    @discardableResult
+    func addPeripheral() -> FakePeripheral {
+        let extra = FakePeripheral(gatt: ConnectionRig.defaultGATT())
+        extra.responseMode = .immediate
+        sync { radio.knownPeripherals[extra.identifier] = extra }
+        return extra
+    }
+
+    /// Connects to one specific peripheral and waits for it to land.
+    func connect(to target: FakePeripheral) async throws -> Connection {
+        let task = Task { try await central.connect(target.identifier) }
+        await waitUntil {
+            self.sync { self.central.registry.connection(for: target.identifier)?.core.state } == .connecting
+        }
+        sync { radio.emitConnect(target) }
+        return try await task.value
+    }
+
     @discardableResult
     func sync<T>(_ body: () throws -> T) rethrows -> T {
         try library.sync(body)
@@ -259,6 +278,82 @@ struct CentralLifetimeTests {
         await connection.disconnect()
 
         #expect(rig.sync { rig.central.registry.count } == 0)
+    }
+
+    @Test("the inventory lists what the radio is actually holding")
+    func activeConnectionsListsLinks() async throws {
+        // The cost of PLAN.md §7 Q9 is that a link nobody closes stays open. This is how an app
+        // finds one.
+        let rig = CentralRig()
+        let second = rig.addPeripheral()
+        #expect(await rig.central.activeConnections.isEmpty)
+
+        let first = try await rig.connect(to: rig.peripheral)
+        let other = try await rig.connect(to: second)
+
+        let listed = await rig.central.activeConnections
+        #expect(listed.count == 2)
+        #expect(Set(listed.map(\.peripheralID)) == [first.peripheralID, other.peripheralID])
+    }
+
+    @Test("the inventory is stable across calls")
+    func activeConnectionsIsStable() async throws {
+        let rig = CentralRig()
+        rig.addPeripheral()
+        _ = try await rig.connect(to: rig.peripheral)
+
+        let firstRead = await rig.central.activeConnections.map(\.peripheralID)
+        let secondRead = await rig.central.activeConnections.map(\.peripheralID)
+        #expect(firstRead == secondRead)
+    }
+
+    @Test("a connection that has ended drops off the inventory")
+    func endedConnectionsAreNotListed() async throws {
+        let rig = CentralRig()
+        let connection = try await rig.connect(to: rig.peripheral)
+
+        await connection.disconnect()
+
+        #expect(await rig.central.activeConnections.isEmpty)
+    }
+
+    @Test("disconnectAll closes every link it is holding")
+    func disconnectAllClosesEverything() async throws {
+        let rig = CentralRig()
+        let second = rig.addPeripheral()
+        let first = try await rig.connect(to: rig.peripheral)
+        let other = try await rig.connect(to: second)
+
+        await rig.central.disconnectAll()
+
+        #expect(await first.state == .disconnected(reason: .userInitiated))
+        #expect(await other.state == .disconnected(reason: .userInitiated))
+        #expect(await rig.central.activeConnections.isEmpty)
+        #expect(rig.sync { rig.radio.calls }.contains(.cancelConnection(first.peripheralID)))
+        #expect(rig.sync { rig.radio.calls }.contains(.cancelConnection(other.peripheralID)))
+    }
+
+    @Test("disconnectAll with nothing to close is harmless")
+    func disconnectAllOnAnEmptyCentral() async {
+        let rig = CentralRig()
+
+        await rig.central.disconnectAll()
+
+        #expect(await rig.central.activeConnections.isEmpty)
+    }
+
+    @Test("a connection still waiting for its link is inventoried too")
+    func pendingConnectionsAreListed() async throws {
+        // It holds a pending CoreBluetooth request, so it is exactly the kind of thing an audit
+        // is looking for.
+        let rig = CentralRig()
+        let task = Task { try await rig.central.connectWhenAvailable(rig.peripheralID) }
+        await waitUntil { rig.core?.state == .connecting }
+
+        #expect(await rig.central.activeConnections.count == 1)
+
+        task.cancel()
+        _ = await task.result
     }
 
     @Test("a connection made again after one ended is a new one")
