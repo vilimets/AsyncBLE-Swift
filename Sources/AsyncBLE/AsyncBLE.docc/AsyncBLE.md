@@ -75,11 +75,19 @@ hardware and without mocking Apple's classes.
 ### Connections
 
 - ``Connection``
-- ``CharacteristicID``
 - ``ConnectionState``
 - ``DisconnectReason``
 - ``AdapterState``
 - ``Connection/WriteMode``
+
+### Addressing characteristics
+
+- ``CharacteristicID``
+- ``Characteristic``
+- ``CharacteristicDecodable``
+- ``CharacteristicEncodable``
+- ``CharacteristicValue``
+- ``CharacteristicDecodingError``
 
 ### Configuration
 

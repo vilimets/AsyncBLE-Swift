@@ -147,3 +147,35 @@ private func inspectMTU(_ connection: Connection) async -> Int {
         peripheral.maximumWriteValueLength(for: .withoutResponse)
     }
 }
+
+// ─── Typed characteristics: the same calls, without hand-decoding ─────────────────────────
+
+/// A value that knows its own wire format. Read and written as itself, never as `Data`.
+private struct HeartRateMeasurement: CharacteristicDecodable {
+    let beatsPerMinute: Int
+
+    init(characteristicData data: Data) throws {
+        guard let flags = data.first, data.count >= 2 else {
+            throw CharacteristicDecodingError.unexpectedLength(expected: 2, actual: data.count)
+        }
+        // Bit 0 of the flags byte selects an 8- or 16-bit value, per the SIG's spec.
+        beatsPerMinute = flags & 0x01 == 0
+            ? Int(data[1])
+            : Int(UInt16(data[1]) | UInt16(data[2]) << 8)
+    }
+}
+
+/// The UUIDs live in one place, each carrying what its bytes mean.
+private enum HeartRate {
+    static let measurement = Characteristic<HeartRateMeasurement>("2A37")
+    static let controlPoint = Characteristic<UInt8>("2A39")
+}
+
+/// After, typed: no `Data`, no decoding at the call site.
+private func monitorTyped(_ connection: Connection) async throws {
+    try await connection.write(0x01, to: HeartRate.controlPoint)
+
+    for try await measurement in try await connection.notifications(for: HeartRate.measurement) {
+        print(measurement.beatsPerMinute)
+    }
+}

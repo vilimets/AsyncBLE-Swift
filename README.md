@@ -28,6 +28,7 @@ Target audience: iOS developers integrating BLE devices.
   - Link drop → `reconnecting` (if policy allows)
   - `disconnect()` called by the user → `disconnected`, no retry
 - Characteristic I/O: async `read`, `write` (with-response and without-response), `notifications(for:) -> AsyncThrowingStream<Data, Error>`
+- Typed characteristics: pair a UUID with the type of its value once, then read and write that type directly — `let bpm = try await connection.read(HeartRate.measurement)`
 - All I/O on a connection runs in call order through one FIFO queue
 - Notification subscriptions are restored automatically across a reconnect; reads and writes fail fast while reconnecting
 - Write-without-response includes flow control (wait on `canSendWriteWithoutResponse`)

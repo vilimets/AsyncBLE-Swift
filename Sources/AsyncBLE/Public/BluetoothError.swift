@@ -87,14 +87,28 @@ public enum BluetoothError: Error, Sendable {
 
     /// The peripheral refused an operation, or it failed on the wire.
     ///
-    /// Thrown by ``Connection/read(_:)``, ``Connection/write(_:to:mode:)`` and
-    /// ``Connection/notifications(for:bufferingPolicy:)`` when CoreBluetooth reports an error
-    /// against a request the library had already issued — an ATT error such as insufficient
-    /// authentication or an application-defined error code from the peripheral's own firmware.
+    /// Thrown by ``Connection/read(_:)->Data``, ``Connection/write(_:to:mode:)-(Data,_,_)`` and
+    /// ``Connection/notifications(for:bufferingPolicy:)->AsyncThrowingStream<Data,Error>`` when
+    /// CoreBluetooth reports an error against a request the library had already issued — an ATT
+    /// error such as insufficient authentication, or an application-defined error code from the
+    /// peripheral's own firmware.
     ///
     /// The link is still up: this says the operation failed, not that the connection did.
     ///
     /// - Parameter underlying: The error CoreBluetooth reported. For an ATT failure this is a
     ///   `CBATTError`, whose code carries the peripheral's reason.
     case operationFailed(underlying: Error?)
+
+    /// The bytes arrived, but the value type refused them.
+    ///
+    /// Thrown only by the typed API — ``Connection/read(_:)-(Characteristic<Value>)`` and the
+    /// typed ``Connection/notifications(for:bufferingPolicy:)-(Characteristic<Value>,_)``. The
+    /// read itself succeeded: this says the peripheral and your ``CharacteristicDecodable``
+    /// conformance disagree about the format, which is a protocol bug rather than a link
+    /// problem.
+    ///
+    /// - Parameters:
+    ///   - characteristic: The characteristic whose bytes could not be decoded.
+    ///   - underlying: Whatever the value's initializer threw, carried rather than interpreted.
+    case decodingFailed(characteristic: CharacteristicID, underlying: Error)
 }
