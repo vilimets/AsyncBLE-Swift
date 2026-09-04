@@ -52,7 +52,7 @@ import Foundation
 @testable import AsyncBLE
 
 private let heartRateService = CBUUID(string: "180D")
-private let measurement = CBUUID(string: "2A37")
+private let measurement = CharacteristicID(string: "2A37")
 
 /// After: the whole thing, top to bottom.
 private func monitorHeartRate() async throws {
@@ -131,7 +131,7 @@ private func bluetoothBanner(_ central: Central) async {
 
 /// Writes: acknowledged by default, fire-and-forget when throughput matters. Both land in the
 /// order they were called, even from different tasks.
-private func sendCommands(_ connection: Connection, to characteristic: CBUUID) async throws {
+private func sendCommands(_ connection: Connection, to characteristic: CharacteristicID) async throws {
     try await connection.write(Data([0x01]), to: characteristic)
 
     for chunk in [Data([0x02]), Data([0x03])] {

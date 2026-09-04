@@ -23,7 +23,8 @@ import Foundation
 /// ```
 ///
 /// No CoreBluetooth type appears in any signature here — `CBUUID` excepted, as the identifier
-/// type (PLAN.md §3).
+/// type (PLAN.md §3). Characteristic positions spell it ``CharacteristicID``; service positions,
+/// such as ``scan(services:allowDuplicates:)``, keep Apple's name.
 public actor Central {
     /// The tunables this central was created with.
     nonisolated public let configuration: Configuration

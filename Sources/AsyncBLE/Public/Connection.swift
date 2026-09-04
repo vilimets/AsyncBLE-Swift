@@ -121,7 +121,7 @@ public actor Connection {
     ///   ``BluetoothError/operationFailed(underlying:)`` if the peripheral refuses the read, or
     ///   ``BluetoothError/disconnected(reason:)`` if the link is down — including while the
     ///   connection is `reconnecting`, which fails immediately rather than waiting.
-    public func read(_ characteristic: CBUUID) async throws -> Data {
+    public func read(_ characteristic: CharacteristicID) async throws -> Data {
         let ticket = core.enqueue()
         defer { core.complete(ticket) }
         try await waitForTurn(ticket)
@@ -164,7 +164,7 @@ public actor Connection {
     ///
     ///   Only ``WriteMode/withResponse`` can report a rejection. A write-without-response is
     ///   never acknowledged, so nothing can fail it.
-    public func write(_ data: Data, to characteristic: CBUUID, mode: WriteMode = .withResponse) async throws {
+    public func write(_ data: Data, to characteristic: CharacteristicID, mode: WriteMode = .withResponse) async throws {
         let ticket = core.enqueue()
         defer { core.complete(ticket) }
         try await waitForTurn(ticket)
@@ -235,7 +235,7 @@ public actor Connection {
     ///   ``BluetoothError/operationFailed(underlying:)`` if the peripheral refuses the
     ///   subscription, or ``BluetoothError/disconnected(reason:)`` if the link is down.
     public func notifications(
-        for characteristic: CBUUID,
+        for characteristic: CharacteristicID,
         bufferingPolicy: AsyncThrowingStream<Data, Error>.Continuation.BufferingPolicy = .bufferingNewest(256)
     ) async throws -> AsyncThrowingStream<Data, Error> {
         let ticket = core.enqueue()

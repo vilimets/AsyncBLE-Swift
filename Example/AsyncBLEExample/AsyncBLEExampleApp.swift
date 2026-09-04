@@ -6,7 +6,6 @@
 // makes it useful as the manual smoke test in PLAN.md §5.
 
 import AsyncBLE
-import CoreBluetooth
 import SwiftUI
 
 @main

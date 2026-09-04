@@ -6,7 +6,6 @@
 // rather than to a link (PLAN.md §7 Q2). That is the manual smoke test.
 
 import AsyncBLE
-import CoreBluetooth
 import SwiftUI
 import UIKit
 
@@ -24,7 +23,7 @@ final class DeviceModel: ObservableObject {
     private var connection: Connection?
     private var stateTask: Task<Void, Never>?
     private var notifyTask: Task<Void, Never>?
-    private var subscribedUUID: CBUUID?
+    private var subscribedUUID: CharacteristicID?
 
     init(central: Central, peripheralID: UUID) {
         self.central = central
@@ -58,7 +57,7 @@ final class DeviceModel: ObservableObject {
     }
 
     /// Reads once. Fails fast if the link is down rather than queueing behind a reconnect.
-    func read(_ uuid: CBUUID) {
+    func read(_ uuid: CharacteristicID) {
         guard let connection else { return }
         failure = nil
         note("read(\(uuid.uuidString)): requesting")
@@ -80,7 +79,7 @@ final class DeviceModel: ObservableObject {
     /// whether the peripheral ever accepted the subscription, and the `cancelled` flag on the
     /// final line tells you whether the stream ended because *this app* tore it down (an
     /// `unsubscribe()` tap, or the view going away) rather than the library or peripheral.
-    func subscribe(_ uuid: CBUUID) {
+    func subscribe(_ uuid: CharacteristicID) {
         guard let connection, notifyTask == nil else { return }
         failure = nil
         subscribedUUID = uuid
@@ -154,12 +153,12 @@ struct DeviceView: View {
         _model = StateObject(wrappedValue: DeviceModel(central: central, peripheralID: peripheralID))
     }
 
-    private var characteristic: CBUUID? {
+    private var characteristic: CharacteristicID? {
         let trimmed = characteristicText.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
-        // CBUUID(string:) traps on malformed input, so validate the shape first.
+        // CharacteristicID(string:) traps on malformed input, so validate the shape first.
         let isValid = trimmed.count == 4 || trimmed.count == 8 || trimmed.count == 36
-        return isValid ? CBUUID(string: trimmed) : nil
+        return isValid ? CharacteristicID(string: trimmed) : nil
     }
 
     var body: some View {

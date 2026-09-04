@@ -43,6 +43,8 @@ These are enforced in review. A pull request that breaks one will not be merged.
 
 1. No CoreBluetooth type appears in a public signature, except inside `Connection.raw`.
    `CBUUID` is the single documented exception: it is a value type used as an identifier.
+   Characteristic positions spell it `CharacteristicID`, a typealias, so that consumers need
+   no CoreBluetooth import; service positions keep Apple's name.
 2. The state machine is pure. It imports Foundation and nothing else, takes an event, and
    returns a state plus effects. This is what makes it testable without hardware.
 3. All state transitions flow through the state machine. The delegate bridge translates

@@ -1,7 +1,8 @@
 // The single public error type (PLAN.md §3).
 //
 // `CBUUID` is the one CoreBluetooth type allowed in the public API: a value type with no
-// behavior, used as the characteristic identifier. Document that exception on the case.
+// behavior, used as an identifier. In characteristic positions it is spelled
+// `CharacteristicID`; document that on the case.
 
 @preconcurrency import CoreBluetooth
 
@@ -69,10 +70,10 @@ public enum BluetoothError: Error, Sendable {
     /// find it. A stale UUID, or a peripheral that came back from a reconnect in a different
     /// firmware mode, are the usual causes.
     ///
-    /// `CBUUID` is the single CoreBluetooth type permitted in this library's public API
-    /// (PLAN.md §3): it is an immutable value type with no behavior, and wrapping it would
-    /// add friction without adding safety.
-    case characteristicNotFound(CBUUID)
+    /// ``CharacteristicID`` is `CBUUID` — the single CoreBluetooth type permitted in this
+    /// library's public API (PLAN.md §3). It is an immutable value type with no behavior, and
+    /// wrapping it would add friction without adding safety; the alias only renames it.
+    case characteristicNotFound(CharacteristicID)
 
     /// The characteristic does not support the requested operation.
     ///

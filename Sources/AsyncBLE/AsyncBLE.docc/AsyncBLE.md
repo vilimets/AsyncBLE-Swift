@@ -21,8 +21,12 @@ machine, and reconnection as a value you pass in — one that decides when to *s
 while the OS does the waiting.
 
 CoreBluetooth types stay out of the public API. The one deliberate exception is `CBUUID`, used
-as the characteristic identifier, plus the objects handed to the `withRaw` escape hatch when you
-need them. See <doc:EscapeHatch>.
+as an identifier, plus the objects handed to the `withRaw` escape hatch when you need them. See
+<doc:EscapeHatch>.
+
+In characteristic positions that type is spelled ``CharacteristicID``, so addressing a
+characteristic needs no CoreBluetooth import — the `Example/` app has none. Service positions
+keep Apple's name, because they hold the same type in a different role.
 
 ### Layering
 
@@ -71,6 +75,7 @@ hardware and without mocking Apple's classes.
 ### Connections
 
 - ``Connection``
+- ``CharacteristicID``
 - ``ConnectionState``
 - ``DisconnectReason``
 - ``AdapterState``
