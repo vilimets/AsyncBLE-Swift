@@ -68,3 +68,6 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# The development plan is kept locally, not published.
+PLAN.md
