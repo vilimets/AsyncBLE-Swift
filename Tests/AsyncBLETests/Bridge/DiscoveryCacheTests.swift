@@ -1,7 +1,7 @@
 // Lazy discovery: one walk per link, however many callers ask; cached afterwards; and gone the
 // moment the link drops, because CoreBluetooth invalidated every object in it.
 //
-// PLAN.md §5 calls this the hardest part of Phase 2. These are the cases that make it so.
+// The hardest part of the connection layer. These are the cases that make it so.
 
 @preconcurrency import CoreBluetooth
 import Foundation
@@ -191,7 +191,7 @@ struct DiscoveryCacheTests {
     @Test("a drop empties the cache, and the next link walks again")
     func invalidateForcesAFreshWalk() {
         // Apple invalidates every CBService and CBCharacteristic on disconnect, so a cache that
-        // survived a reconnect would be handing out dead objects (PLAN.md §7 Q2).
+        // survived a reconnect would be handing out dead objects.
         let rig = makeRig()
         rig.cache.resolve(measurement, rig.answers.deliver)
         rig.peripheral.flush()
@@ -242,7 +242,7 @@ struct DiscoveryCacheTests {
 
     @Test("a characteristic that comes back missing after a reconnect is not found")
     func characteristicGoneAfterReconnect() {
-        // PLAN.md §7 Q8's premise, at the cache layer: the peripheral came back in a different
+        // The restore premise, at the cache layer: the peripheral came back in a different
         // firmware mode and simply does not have it any more.
         let rig = makeRig()
         rig.cache.resolve(measurement, rig.answers.deliver)

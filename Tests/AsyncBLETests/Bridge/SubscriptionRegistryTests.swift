@@ -1,5 +1,5 @@
 // Notification streams: fan-out per characteristic, unsubscribe when the last one leaves, and
-// the bookkeeping that carries a subscription across a reconnect (PLAN.md §7 Q2, Q8).
+// the bookkeeping that carries a subscription across a reconnect.
 
 @preconcurrency import CoreBluetooth
 import Foundation
@@ -94,7 +94,7 @@ struct SubscriptionRegistryTests {
 
     @Test("a subscription that cannot be restored throws")
     func failingASubscriptionThrows() async {
-        // PLAN.md §7 Q8: the link came back without the characteristic. A stream that just
+        // The link came back without the characteristic. A stream that just
         // finished would be indistinguishable from a sensor that went quiet.
         let (registry, _) = makeRegistry()
         let (_, stream) = registry.subscribe(to: measurement, bufferingPolicy: .unbounded)

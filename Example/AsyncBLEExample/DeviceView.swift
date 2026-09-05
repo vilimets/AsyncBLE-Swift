@@ -3,7 +3,7 @@
 // The state list is the point. Walk away from the peripheral with this screen open and you
 // should see `connected → reconnecting(1)`, then `connected` again when you walk back — with
 // the notification stream still delivering, because a subscription is to a characteristic
-// rather than to a link (PLAN.md §7 Q2). That is the manual smoke test.
+// rather than to a link. That is the manual smoke test.
 
 import AsyncBLE
 import SwiftUI

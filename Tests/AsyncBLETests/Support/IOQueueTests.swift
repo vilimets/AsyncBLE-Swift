@@ -1,5 +1,5 @@
 // The FIFO, tested on its own terms: order in, order out, and what happens to everyone waiting
-// when the link goes away underneath them (PLAN.md §7 Q4, Q11).
+// when the link goes away underneath them.
 
 import Foundation
 import Testing
@@ -95,7 +95,7 @@ struct IOQueueTests {
 
     @Test("a drop fails everyone waiting, in line order")
     func dropFailsEveryoneInOrder() {
-        // PLAN.md §4: queued writes at the moment of a drop fail, in order, before any new I/O
+        // Queued writes at the moment of a drop fail, in order, before any new I/O
         // is accepted — which is why the state machine emits endPendingOperations before it
         // arms a reconnect.
         let queue = IOQueue()

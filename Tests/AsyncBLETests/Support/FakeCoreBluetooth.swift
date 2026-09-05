@@ -1,4 +1,4 @@
-// Hand-written fakes behind the CoreBluetooth seam (PLAN.md §7 Q7).
+// Hand-written fakes behind the CoreBluetooth seam.
 //
 // These are what make the risky 70% of the library testable: the bridge, the discovery cache,
 // the I/O queue and the reconnect path all talk to `CentralSeam` / `PeripheralSeam`, and these

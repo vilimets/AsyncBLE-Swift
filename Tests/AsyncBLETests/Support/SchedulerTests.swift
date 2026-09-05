@@ -55,7 +55,7 @@ struct SchedulerTests {
 
     @Test("cancelled work never runs")
     func cancellation() {
-        // The property `disconnect()` depends on: no zombie timers (PLAN.md §4, edge cases).
+        // The property `disconnect()` depends on: no zombie timers.
         let scheduler = TestScheduler()
         let fired = Fired()
         let work = scheduler.schedule(after: .seconds(10)) { fired.mark("timeout") }

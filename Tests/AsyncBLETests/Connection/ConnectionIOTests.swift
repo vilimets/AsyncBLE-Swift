@@ -183,7 +183,7 @@ struct ConnectionIOTests {
 
     @Test("I/O fails fast while the connection is reconnecting")
     func ioFailsFastDuringAnOutage() async throws {
-        // PLAN.md §7 Q2: a command composed against pre-drop state should not land on a device
+        // A command composed against pre-drop state should not land on a device
         // that may have rebooted into a different one. So it fails rather than queueing.
         let rig = ConnectionRig()
         rig.connect()

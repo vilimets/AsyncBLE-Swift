@@ -1,4 +1,4 @@
-// The edge cases from PLAN.md §4 that are about a *sequence* rather than a single row: a wait
+// The edge cases that are about a *sequence* rather than a single row: a wait
 // that survives a power cycle, an attempt counter that stays honest, a disconnect that leaves
 // nothing running behind it.
 
@@ -21,7 +21,7 @@ struct StateMachineSequenceTests {
         run.feed(.didConnect)
         #expect(run.state == .connected)
         // Coming back is a rebuild, not a resume: CoreBluetooth invalidated every cached
-        // service and characteristic while the link was down (PLAN.md §7 Q2).
+        // service and characteristic while the link was down.
         #expect(run.lastEffects.contains(.invalidateDiscoveryCache))
         #expect(run.lastEffects.contains(.restoreSubscriptions))
     }
@@ -61,7 +61,7 @@ struct StateMachineSequenceTests {
 
     @Test("without a re-arm cadence the attempt counter honestly stays at 1")
     func attemptCounterStaysHonest() {
-        // PLAN.md §7 Q16: there is one request in flight and the OS is holding it. Counting
+        // There is one request in flight and the OS is holding it. Counting
         // imaginary retries would be a lie told in a public API.
         var run = MachineRun.reconnecting(policy: .waitIndefinitely())
         run.feed(

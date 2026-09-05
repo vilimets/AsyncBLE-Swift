@@ -5,7 +5,7 @@
 // Response timing is a first-class knob. CoreBluetooth never answers synchronously, so
 // `.queued` is the default: a call records itself and parks its answer until the test flushes
 // it. That is what lets a test hold two operations in flight at once and assert on the order
-// they complete in, which is the whole point of the FIFO queue (PLAN.md §7 Q4).
+// they complete in, which is the whole point of the FIFO queue.
 
 @preconcurrency import CoreBluetooth
 import Foundation
@@ -43,7 +43,7 @@ final class FakePeripheral: PeripheralSeam, @unchecked Sendable {
     /// The whole GATT tree, whether or not it has been discovered yet.
     ///
     /// Assigning replaces what a reconnect will find — which is how "the peripheral came back
-    /// in a different firmware mode and the characteristic is gone" gets tested (PLAN.md §7 Q8).
+    /// in a different firmware mode and the characteristic is gone" gets tested.
     var gatt: [FakeService] {
         didSet { discovered = [] }
     }
@@ -162,7 +162,7 @@ final class FakePeripheral: PeripheralSeam, @unchecked Sendable {
     /// Invalidates the discovered tree, as CoreBluetooth does on every disconnect.
     ///
     /// Called for you by ``FakeCentral/emitDisconnect(_:error:)``: a cache that survived a drop
-    /// in a test would be hiding the bug the discovery cache exists to avoid (PLAN.md §7 Q2).
+    /// in a test would be hiding the bug the discovery cache exists to avoid.
     func linkDidDrop() {
         discovered = []
         pending.removeAll()

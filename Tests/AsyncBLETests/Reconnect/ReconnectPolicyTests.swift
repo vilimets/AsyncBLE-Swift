@@ -1,8 +1,8 @@
 // The policy as a value: .never / .indefinitely / .until(deadline), and the optional re-arm
-// cadence. No curve to assert any more — the OS holds the pending connect (PLAN.md §7 Q14).
+// cadence. No curve to assert any more — the OS holds the pending connect.
 //
 // The engine's behavior is what needs covering: deadline expiry lands in .reconnectGaveUp, the
-// deadline keeps running while the adapter is off (§7 Q20), re-arms increment the attempt
+// deadline keeps running while the adapter is off, re-arms increment the attempt
 // counter, and disconnect() cancels both timers.
 //
 // There is no ReconnectEngine type. With the OS doing the retrying there is no retry loop to
@@ -35,7 +35,7 @@ struct ReconnectPolicyValueTests {
 
     @Test("policies compare by value, so a test needs no clock and no mock")
     func equatable() {
-        // The point of dropping the closures from PLAN.md §7 Q15.
+        // The point of dropping the closures from the policy.
         #expect(ReconnectPolicy.waitIndefinitely() == .waitIndefinitely())
         #expect(ReconnectPolicy.giveUp(after: .seconds(60)) != .giveUp(after: .seconds(61)))
         #expect(ReconnectPolicy.waitIndefinitely() != .waitIndefinitely(reArmEvery: .seconds(30)))
@@ -44,7 +44,7 @@ struct ReconnectPolicyValueTests {
 
     @Test("the default configuration waits indefinitely")
     func defaultPolicy() {
-        // PLAN.md §5: the old default gave up after ~31 seconds, which is useless for a
+        // The old default gave up after ~31 seconds, which is useless for a
         // wearable. Waiting costs nothing, because the OS is doing the waiting.
         #expect(Central.Configuration().reconnectPolicy == .waitIndefinitely())
     }
@@ -68,7 +68,7 @@ struct ReconnectBehaviorTests {
 
     @Test("a pending connect has no deadline to run out")
     func pendingConnectNeverTimesOut() async {
-        // connectWhenInRange(_:): nobody is awaiting it, so it waits (PLAN.md §7 Q17).
+        // connectWhenInRange(_:): nobody is awaiting it, so it waits.
         let rig = ConnectionRig()
         rig.sync { rig.core.requestConnect(timeout: nil) }
 
@@ -80,7 +80,7 @@ struct ReconnectBehaviorTests {
 
     @Test("without a cadence, one arm covers the whole outage")
     func noCadenceMeansOneArm() async {
-        // PLAN.md §7 Q16: there is one request in flight and the OS is holding it. The attempt
+        // There is one request in flight and the OS is holding it. The attempt
         // number says `1` because that is the truth.
         let rig = ConnectionRig(policy: .waitIndefinitely())
         rig.connect()
@@ -114,7 +114,7 @@ struct ReconnectBehaviorTests {
 
     @Test("no cadence fires against a dead radio")
     func cadencePausesWhileTheAdapterIsOff() async {
-        // The two-axis policy softening §7 Q20: the deadline still burns, but re-arming a
+        // The two-axis policy: the deadline still burns, but re-arming a
         // connect against a switched-off adapter is pure waste.
         let rig = ConnectionRig(policy: .waitIndefinitely(reArmEvery: .seconds(30)))
         rig.connect()
@@ -141,7 +141,7 @@ struct ReconnectBehaviorTests {
 
     @Test("disconnect during a wait leaves no timers running")
     func disconnectLeavesNoZombies() async {
-        // PLAN.md §4, edge cases. A give-up deadline that outlived its connection would fire
+        // Edge case. A give-up deadline that outlived its connection would fire
         // into nothing; a re-arm timer would talk to a radio nobody is listening to.
         let rig = ConnectionRig(policy: .giveUp(after: .seconds(120), reArmEvery: .seconds(30)))
         rig.connect()

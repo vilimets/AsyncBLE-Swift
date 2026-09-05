@@ -1,5 +1,5 @@
-// The rows of PLAN.md §4 that leave `connected` and `reconnecting` — the reconnect mechanism
-// itself, which is the one thing this library is judged on (PLAN.md §1).
+// The rows of the transition table that leave `connected` and `reconnecting` — the reconnect
+// mechanism itself, which is the one thing this library is judged on.
 //
 // Every test here is a pure function call. There is no clock and no radio: the machine emits
 // `startGiveUpDeadline` and receives `giveUpDeadlineReached`, so time never has to pass.
@@ -33,7 +33,7 @@ struct LinkDropTransitionTests {
 
     @Test("queued I/O is failed before anything is re-armed")
     func queuedWritesFailFirst() {
-        // PLAN.md §4, edge cases: a write composed against the old link must not land on the
+        // Edge case: a write composed against the old link must not land on the
         // new one. Ordering is the whole assertion.
         let effects = drop(policy: .waitIndefinitely()).effects
         let failed = effects.firstIndex(of: .endPendingOperations(reason: .linkLost))
@@ -75,7 +75,7 @@ struct LinkDropTransitionTests {
         .giveUp(after: .seconds(60))
     ])
     func userDisconnectNeverWaits(policy: ReconnectPolicy) {
-        // The same CoreBluetooth callback as a link drop; only the flag differs (PLAN.md §2).
+        // The same CoreBluetooth callback as a link drop; only the flag differs.
         let result = ConnectionStateMachine.transition(
             from: .connected,
             on: .didDisconnect(nil, userInitiated: true),
@@ -165,7 +165,7 @@ struct ReconnectingTransitionTests {
     @Test("the deadline expiring ends the connection and the subscriptions with it")
     func deadlineGivesUp() {
         // The one place reconnectGaveUp comes from. Subscriptions throw rather than finish
-        // quietly (PLAN.md §7 Q8) — the machine reports the reason, the stream layer presents it.
+        // quietly — the machine reports the reason, the stream layer presents it.
         let result = transition(attempt: 4, on: .giveUpDeadlineReached, policy: .giveUp(after: .seconds(60)))
         #expect(result.state == .disconnected(reason: .reconnectGaveUp))
         #expect(result.effects == [.cancelReArmTimer] + terminalEffects(.reconnectGaveUp))
@@ -173,7 +173,7 @@ struct ReconnectingTransitionTests {
 
     @Test("the adapter going away stops re-arming but never the deadline")
     func adapterOffKeepsBurningTheDeadline() {
-        // PLAN.md §7 Q20, which deliberately reversed the first round's answer: the deadline is
+        // Deliberately the opposite of the intuitive answer: the deadline is
         // wall-clock and a long enough power-off does end the wait.
         let result = transition(
             attempt: 2,
@@ -198,7 +198,7 @@ struct ReconnectingTransitionTests {
 
     @Test("disconnect() while waiting leaves no zombie timers")
     func disconnectWhileWaiting() {
-        // PLAN.md §4, edge cases. Both timers go, and so does the pending connect the OS is
+        // Edge case. Both timers go, and so does the pending connect the OS is
         // still holding — otherwise it lands on a connection nobody is watching.
         let result = transition(
             attempt: 5,

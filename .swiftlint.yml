@@ -36,7 +36,7 @@ opt_in_rules:
 disabled_rules:
   - todo
 
-# Every public declaration gets a doc comment at write time (PLAN.md §6).
+# Every public declaration gets a doc comment at write time.
 missing_docs:
   excludes_extensions: false
   excludes_inherited_types: true

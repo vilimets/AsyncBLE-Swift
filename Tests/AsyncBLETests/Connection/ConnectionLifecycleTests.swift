@@ -1,7 +1,7 @@
 // Notifications, and what a reconnect does to them.
 //
 // This is the claim the library is judged on made concrete: a subscription is to a
-// characteristic, not to a link (PLAN.md §7 Q2). The same stream, either side of an outage, with
+// characteristic, not to a link. The same stream, either side of an outage, with
 // the discovery walk and the resubscribe happening underneath a caller who only sees a gap in
 // the values.
 
@@ -121,7 +121,7 @@ struct ConnectionReconnectTests {
 
     @Test("a characteristic that does not come back fails its own stream and nothing else")
     func missingCharacteristicAfterReconnect() async throws {
-        // PLAN.md §7 Q8: the stream throws rather than finishing, because a stream that stops
+        // The stream throws rather than finishing, because a stream that stops
         // is indistinguishable from a quiet sensor. The connection stays up.
         let rig = ConnectionRig()
         rig.connect()
@@ -169,7 +169,7 @@ struct ConnectionReconnectTests {
 
     @Test("a bounded policy gives up when its deadline expires")
     func boundedPolicyGivesUp() async throws {
-        // Wall-clock and unpaused, per PLAN.md §7 Q20 — here, a clock the test owns outright.
+        // Wall-clock and unpaused — here, a clock the test owns outright.
         let rig = ConnectionRig(policy: .giveUp(after: .seconds(120)))
         rig.connect()
         let stream = try await rig.connection.notifications(for: TestUUID.measurement)
@@ -185,7 +185,7 @@ struct ConnectionReconnectTests {
 
     @Test("the deadline keeps burning while Bluetooth is off")
     func deadlineIgnoresThePowerSwitch() async {
-        // The reversal recorded in §7 Q20: a trip through Control Center can end a bounded wait.
+        // A trip through Control Center can end a bounded wait.
         let rig = ConnectionRig(policy: .giveUp(after: .seconds(120)))
         rig.connect()
         rig.dropLink()
@@ -280,7 +280,7 @@ struct ConnectionTerminationTests {
 
     @Test("a connection that has ended stops being routed to")
     func terminalConnectionIsUnregistered() async {
-        // PLAN.md §7 Q9: the registry holds a connection until it reaches terminal
+        // The registry holds a connection until it reaches terminal
         // `disconnected`, then lets it go.
         let rig = ConnectionRig()
         rig.connect()

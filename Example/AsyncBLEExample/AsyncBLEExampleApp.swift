@@ -3,7 +3,7 @@
 //
 // It is generic on purpose. A demo hardcoded to one peripheral proves the library works with
 // that peripheral; this one can be pointed at whatever hardware is on the desk, which is what
-// makes it useful as the manual smoke test in PLAN.md §5.
+// makes it useful as the manual smoke test.
 
 import AsyncBLE
 import SwiftUI

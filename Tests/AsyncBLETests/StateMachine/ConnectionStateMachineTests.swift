@@ -1,4 +1,4 @@
-// One test per row of the transition table in PLAN.md §4, plus the explicit edge cases:
+// One test per row of the transition table, plus the explicit edge cases:
 //   - disconnect() while reconnecting cancels the timer (no zombie retry)
 //   - connect() while already connecting
 //   - Bluetooth powered off mid-connection
@@ -30,7 +30,7 @@ struct DisconnectedTransitionTests {
     @Test("connectRequested without a timeout arms only the radio")
     func pendingConnectArmsNoDeadline() {
         // connectWhenInRange(_:): the OS holds the request, so there is no timer to run
-        // against it (PLAN.md §7 Q17).
+        // against it.
         let transition = ConnectionStateMachine.transition(
             from: .disconnected(reason: nil),
             on: .connectRequested(timeout: nil),
@@ -53,7 +53,7 @@ struct DisconnectedTransitionTests {
     ])
     func disconnectedIsTerminal(event: ConnectionEvent) {
         // The late didDisconnect that follows our own cancelPeripheralConnection lands here.
-        // It must not resurrect a machine the central has already released (PLAN.md §7 Q9).
+        // It must not resurrect a machine the central has already released.
         let transition = ConnectionStateMachine.transition(
             from: .disconnected(reason: .userInitiated),
             on: event,
@@ -108,8 +108,8 @@ struct ConnectingTransitionTests {
 
     @Test("the adapter going away fails the attempt rather than starting a wait")
     func adapterLostDuringAttempt() {
-        // Not in the §4 table. A caller is awaiting an answer, and the reconnect policy governs
-        // links that dropped — not links that never came up.
+        // Not in the transition table. A caller is awaiting an answer, and the reconnect policy
+        // governs links that dropped — not links that never came up.
         let result = transition(on: .adapterChanged(.unavailable(reason: .poweredOff)))
         #expect(result.state == .disconnected(reason: .bluetoothUnavailable(reason: .poweredOff)))
         #expect(result.effects == [.cancelConnectTimeout] + terminalEffects(.bluetoothUnavailable(reason: .poweredOff)))
@@ -117,8 +117,8 @@ struct ConnectingTransitionTests {
 
     @Test("a second connect coalesces onto the attempt in flight")
     func secondConnectCoalesces() {
-        // PLAN.md §7 Q7.1. Note what is *not* here: no second armConnect, and no second
-        // deadline — the caller's own deadline is the central's business (§7 Q10).
+        // Note what is *not* here: no second armConnect, and no second
+        // deadline — the caller's own deadline is the central's business.
         let result = transition(on: .connectRequested(timeout: .seconds(1)))
         #expect(result.state == .connecting)
         #expect(result.effects.isEmpty)

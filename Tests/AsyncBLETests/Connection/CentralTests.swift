@@ -1,5 +1,5 @@
 // The central: waiting for the adapter, one connection per peripheral, and the cancellation
-// rules from PLAN.md §7 Q3, Q9 and Q10.
+// rules that go with them.
 
 @preconcurrency import CoreBluetooth
 import Foundation
@@ -85,7 +85,7 @@ final class CentralRig: @unchecked Sendable {
 struct CentralAdapterTests {
     @Test("scanning waits for the adapter's first definitive state")
     func scanWaitsForTheAdapter() async throws {
-        // PLAN.md §7 Q7.4: a freshly created central reports `unknown` for a few milliseconds,
+        // A freshly created central reports `unknown` for a few milliseconds,
         // and failing during that window would make every app's first call a coin toss.
         let rig = CentralRig(adapterState: .unavailable(reason: .unknown))
         let scan = Task { try await rig.central.scan() }
@@ -157,7 +157,7 @@ struct CentralConnectTests {
 
     @Test("two callers coalesce onto one attempt and get the same connection")
     func connectsCoalesce() async throws {
-        // PLAN.md §7 Q7.1 and Q3: a link is device-wide, so there is one attempt and one object.
+        // A link is device-wide, so there is one attempt and one object.
         let rig = CentralRig()
         let first = Task { try await rig.central.connect(rig.peripheralID) }
         await waitUntil { rig.sync { rig.radio.connectCount(for: rig.peripheralID) } == 1 }
@@ -229,7 +229,7 @@ struct CentralConnectTests {
 struct CentralLifetimeTests {
     @Test("one caller cancelling leaves the attempt running for the other")
     func oneCancellationDoesNotEndTheAttempt() async throws {
-        // PLAN.md §7 Q10: this refcounts the attempt, which is safe precisely because an
+        // This refcounts the attempt, which is safe precisely because an
         // in-flight attempt has no device-wide effect until it succeeds.
         let rig = CentralRig()
         let staying = Task { try await rig.central.connect(rig.peripheralID) }
@@ -283,7 +283,7 @@ struct CentralLifetimeTests {
 
     @Test("the central holds a connection until it ends, then lets it go")
     func registryReleasesTerminalConnections() async throws {
-        // PLAN.md §7 Q9. Dropping the last app reference does not close a link; reaching
+        // Dropping the last app reference does not close a link; reaching
         // terminal `disconnected` is what releases it.
         let rig = CentralRig()
         let task = Task { try await rig.central.connect(rig.peripheralID) }
@@ -298,8 +298,8 @@ struct CentralLifetimeTests {
 
     @Test("the inventory lists what the radio is actually holding")
     func activeConnectionsListsLinks() async throws {
-        // The cost of PLAN.md §7 Q9 is that a link nobody closes stays open. This is how an app
-        // finds one.
+        // The cost of links living until explicitly closed is that a link nobody closes stays
+        // open. This is how an app finds one.
         let rig = CentralRig()
         let second = rig.addPeripheral()
         #expect(await rig.central.activeConnections.isEmpty)

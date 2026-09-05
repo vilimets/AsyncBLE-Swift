@@ -105,7 +105,7 @@ struct SeamFakeTests {
     @Test("a disconnect invalidates everything discovery found")
     func disconnectInvalidatesTheTree() {
         // Apple invalidates every CBService and CBCharacteristic on disconnect. A fake that
-        // kept them would hide the bug the discovery cache exists to avoid (PLAN.md §7 Q2).
+        // kept them would hide the bug the discovery cache exists to avoid.
         let central = FakeCentral()
         let peripheral = makePeripheral()
         discoverEverything(on: peripheral)
@@ -117,7 +117,7 @@ struct SeamFakeTests {
 
     @Test("a peripheral can come back from a reconnect with a different GATT tree")
     func gattCanChangeAcrossAReconnect() {
-        // The case behind PLAN.md §7 Q8: the characteristic a stream was subscribed to is
+        // The case where the characteristic a stream was subscribed to is
         // simply not there any more.
         let peripheral = makePeripheral()
         discoverEverything(on: peripheral)
@@ -166,7 +166,7 @@ struct SeamFakeTests {
 
     @Test("a peripheral the system already knows can be retrieved without a scan")
     func retrieveKnownPeripheral() {
-        // The path connectWhenInRange(_:) takes at launch (PLAN.md §7 Q17).
+        // The path connectWhenInRange(_:) takes at launch.
         let central = FakeCentral()
         let peripheral = makePeripheral()
         central.knownPeripherals[peripheral.identifier] = peripheral

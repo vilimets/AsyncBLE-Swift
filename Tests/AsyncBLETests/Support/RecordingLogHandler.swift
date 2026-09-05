@@ -1,6 +1,6 @@
 // A LogHandler that keeps every record, so a test can assert on what the library logged.
 //
-// The library's whole test story is seams driven by fakes (PLAN.md §7 Q7); this is the same
+// The library's whole test story is seams driven by fakes; this is the same
 // shape for logging. "Did the reconnect log a give-up?" becomes one `#expect`.
 
 import Foundation

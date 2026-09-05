@@ -276,7 +276,7 @@ struct CentralDelegateBridgeTests {
 
     @Test("a link that lands with nobody waiting is closed immediately")
     func orphanedLinkIsClosed() {
-        // PLAN.md §7 Q10: the last caller cancelled, the attempt was withdrawn, and the link
+        // The last caller cancelled, the attempt was withdrawn, and the link
         // landed anyway. Nothing holds it, and by Q9 nothing ever would close it.
         let rig = makeBridge()
         let peripheral = FakePeripheral()
