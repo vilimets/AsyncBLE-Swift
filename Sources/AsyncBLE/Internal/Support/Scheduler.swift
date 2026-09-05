@@ -7,6 +7,12 @@
 
 import Foundation
 
+// `@preconcurrency`: `DispatchWorkItem` is not `Sendable`-audited, but cancelling one from
+// another thread is exactly what it is for — the class below stores one purely to cancel it.
+// Stating the assumption at the import, as the CoreBluetooth imports do, rather than claiming
+// `@unchecked Sendable` on Apple's type.
+@preconcurrency import Dispatch
+
 /// Something that can run work later, and be told not to.
 protocol Scheduler: AnyObject, Sendable {
     /// Schedules `work` to run on the library queue after `duration`.

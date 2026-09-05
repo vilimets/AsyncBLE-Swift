@@ -314,7 +314,10 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
         }
     }
 
-    private func schedule(_ duration: Duration, _ work: @escaping (ConnectionCore) -> Void) -> ScheduledWork {
+    private func schedule(
+        _ duration: Duration,
+        _ work: @escaping @Sendable (ConnectionCore) -> Void
+    ) -> ScheduledWork {
         scheduler.schedule(after: duration) { [weak self] in
             guard let self else { return }
             work(self)

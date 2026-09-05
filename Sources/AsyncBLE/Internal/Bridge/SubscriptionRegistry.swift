@@ -73,13 +73,29 @@ final class SubscriptionRegistry: @unchecked Sendable {
             let new = Subscription(uuid: uuid, continuation: continuation)
             subscription = new
             subscriptions[uuid, default: []].append(new)
-            continuation.onTermination = { [weak self, library] _ in
-                library.dispatchQueue.async { self?.remove(new) }
-            }
+            continuation.onTermination = terminator(for: new)
         }
         // The builder closure runs synchronously, so this is never nil.
         guard let subscription else { preconditionFailure("AsyncThrowingStream did not build its continuation") }
         return (subscription, stream)
+    }
+
+    /// The termination handler for one subscription.
+    ///
+    /// Built at method scope rather than inline in the stream builder: a `[weak self]` capture
+    /// written inside another closure captures *that* closure's `self`, which Swift 6 rejects as
+    /// a reference to a captured var from concurrently-executing code.
+    private func terminator(
+        for subscription: Subscription
+    ) -> @Sendable (AsyncThrowingStream<Data, Error>.Continuation.Termination) -> Void {
+        // The weak reference is promoted before the queue hop rather than inside it. A weak
+        // capture is a `var` — it can become nil — and Swift 6 rejects reading one from
+        // concurrently-executing code. Promoting first also means that once termination has
+        // decided the registry is alive, the removal is guaranteed to run.
+        { [weak registry = self, library] _ in
+            guard let registry else { return }
+            library.dispatchQueue.async { registry.remove(subscription) }
+        }
     }
 
     /// Removes one stream, and reports when it was the last one for its characteristic.

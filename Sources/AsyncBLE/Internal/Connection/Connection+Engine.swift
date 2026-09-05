@@ -15,7 +15,7 @@ extension Connection {
     /// - Parameter register: Parks a callback with the engine. Runs synchronously, on the
     ///   library queue, before this function suspends.
     func suspend<T: Sendable>(
-        _ register: (@escaping (Result<T, Error>) -> Void) -> Void
+        _ register: (@escaping @Sendable (Result<T, Error>) -> Void) -> Void
     ) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
             register { continuation.resume(with: $0) }

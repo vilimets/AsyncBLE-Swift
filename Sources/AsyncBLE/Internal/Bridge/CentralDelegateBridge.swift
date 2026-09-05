@@ -79,9 +79,27 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
             // `id`, not `session`: capturing the session would keep it — and its `reported`
             // set, which grows with every peripheral seen — alive from the stream's storage.
             let id = session.id
-            continuation.onTermination = { [weak self, library] _ in
-                library.dispatchQueue.async { self?.endScan(id) }
-            }
+            continuation.onTermination = scanTerminator(for: id)
+        }
+    }
+
+    /// The termination handler for one scan session.
+    ///
+    /// Built at method scope rather than inline in the `AsyncStream` builder: a `[weak self]`
+    /// capture written inside another closure captures *that* closure's `self`, which Swift 6
+    /// rejects as a reference to a captured var from concurrently-executing code. Here there is
+    /// nothing to capture but the reference itself.
+    private func scanTerminator(
+        for id: UUID
+    ) -> @Sendable (AsyncStream<Discovery>.Continuation.Termination) -> Void {
+        // The weak reference is promoted before the queue hop rather than inside it. A weak
+        // capture is a `var` — it can become nil — and Swift 6 rejects reading one from
+        // concurrently-executing code. Promoting first also means that once termination has
+        // decided the bridge is alive, the cleanup is guaranteed to run rather than quietly
+        // becoming a no-op mid-hop.
+        { [weak bridge = self, library] _ in
+            guard let bridge else { return }
+            library.dispatchQueue.async { bridge.endScan(id) }
         }
     }
 
