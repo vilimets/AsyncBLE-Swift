@@ -1,4 +1,4 @@
-# LogConfiguration and diagnostics
+# Logging and diagnostics
 
 See what the library is doing — and why — without patching it.
 
@@ -6,7 +6,7 @@ See what the library is doing — and why — without patching it.
 
 Everything AsyncBLE does that you can observe through its API tells you *that* something
 happened: a state stream yields `reconnecting`, a `read` throws. None of it tells you *why* the
-reconnect gave up, or which discovery walk failed. LogConfiguration fills that gap.
+reconnect gave up, or which discovery walk failed. Logging fills that gap.
 
 The library logs to Apple's unified logging system (OSLog) by default. You configure it once,
 when you create the ``Central`` — there is no runtime setter, because OSLog is normally retuned
@@ -45,7 +45,7 @@ stream:
 - `central` — the adapter, scanning, connect requests, the connection registry
 - `connection` — the state machine: transitions and the effects they trigger
 - `io` — characteristic reads, writes, and notification subscriptions
-- `discovery` — the service and characteristic walk, and the per-link cache
+- `gatt` — the service and characteristic walk, and the per-link cache
 - `reconnect` — pending-connect arming, the give-up deadline, the re-arm cadence, subscription restore
 - `bridge` — the raw CoreBluetooth delegate callbacks, before the library interprets them (`debug` only)
 

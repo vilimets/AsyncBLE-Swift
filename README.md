@@ -7,6 +7,7 @@ No delegates, no `CBPeripheral` in your code, and a connection that survives
 the device walking out of range.
 
 [![CI](https://github.com/vilimets/AsyncBLE-Swift/actions/workflows/ci.yml/badge.svg)](https://github.com/vilimets/AsyncBLE-Swift/actions/workflows/ci.yml)
+[![Docs](https://github.com/vilimets/AsyncBLE-Swift/actions/workflows/docs.yml/badge.svg)](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/)
 [![Swift 5.9](https://img.shields.io/badge/Swift-5.9%2B-fa7343.svg)](https://swift.org)
 [![Platform](https://img.shields.io/badge/platform-iOS%2016%2B-lightgrey.svg)](https://developer.apple.com/ios/)
 [![SPM](https://img.shields.io/badge/SPM-compatible-brightgreen.svg)](https://swift.org/package-manager/)
@@ -332,15 +333,17 @@ Those need real API support; see the [roadmap](#roadmap).
 
 ## Documentation
 
-Full API reference and articles ship as a DocC catalog — **Product ▸ Build Documentation** in
-Xcode, or:
+**[📖 Full API reference and articles](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/)** — published from `main` on every push.
 
-```bash
-xcodebuild docbuild -scheme AsyncBLE -destination "generic/platform=iOS"
-```
+| Article | What it covers |
+|---|---|
+| [Getting started](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/gettingstarted/) | Install, permissions, and a session end to end |
+| [Connection lifecycle](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/connectionlifecycle/) | The four states and every transition between them |
+| [Reconnection](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/reconnection/) | What happens after a link drops, and how to bound it |
+| [Logging and diagnostics](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/diagnostics/) | Levels, categories, and redirecting the output |
+| [Using the escape hatch](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/escapehatch/) | Reaching CoreBluetooth directly, and what that cannot do |
 
-Start with *Getting Started*, then *Connection Lifecycle*, *Reconnection*, *Diagnostics*, and
-*The Escape Hatch*.
+To read it offline, use **Product ▸ Build Documentation** (⌃⇧⌘D) in Xcode.
 
 [`Example/`](Example/) is a small SwiftUI app — scan list, connect, live characteristic value —
 and the fastest way to see the shape of a session.

@@ -1,0 +1,83 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deployment at a time, and never cancel one half-way: an interrupted deploy would
+# leave the published site in whatever state it happened to reach.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  SCHEME: AsyncBLE
+
+jobs:
+  build:
+    name: Build DocC archive
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      # `generic/platform=iOS` rather than a simulator: DocC only needs the symbol graphs,
+      # so there is nothing to boot and no UDID to hunt for the way the CI workflow does.
+      - name: Build documentation
+        run: |
+          set -o pipefail
+          xcodebuild docbuild \
+            -scheme "$SCHEME" \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$RUNNER_TEMP/docs"
+
+      # The base path must match the repository name, or every asset 404s under
+      # vilimets.github.io/AsyncBLE-Swift.
+      - name: Transform for static hosting
+        run: |
+          set -o pipefail
+          archive=$(find "$RUNNER_TEMP/docs" -name '*.doccarchive' -maxdepth 5 | head -1)
+          if [ -z "$archive" ]; then
+            echo "No .doccarchive was produced."
+            exit 1
+          fi
+          echo "Publishing $archive"
+          xcrun docc process-archive transform-for-static-hosting \
+            "$archive" \
+            --output-path _site \
+            --hosting-base-path "${GITHUB_REPOSITORY#*/}"
+
+      # Landing on the Pages root should not be a dead end — send it to the docs.
+      - name: Redirect the site root to the documentation
+        run: |
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>AsyncBLE</title>
+          <meta http-equiv="refresh" content="0; url=documentation/asyncble/">
+          <link rel="canonical" href="documentation/asyncble/">
+          <a href="documentation/asyncble/">AsyncBLE documentation</a>
+          HTML
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

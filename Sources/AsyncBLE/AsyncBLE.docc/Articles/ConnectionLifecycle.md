@@ -40,7 +40,7 @@ caller who is awaiting it, not the start of a wait.
 - **Connected.** The link is up and characteristic I/O is available.
 - **Reconnecting.** The link dropped and the policy is still waiting for it to come back. A
   pending connect stays armed the whole time and the OS fulfils it when the peripheral returns.
-  The attempt number counts arms of that request, not retries — so with the default policy it
+  The arm number counts arms of that request, not retries — so with the default policy it
   reads `1` for the whole outage, because there is one request in flight throughout.
 
 ### Observing state
