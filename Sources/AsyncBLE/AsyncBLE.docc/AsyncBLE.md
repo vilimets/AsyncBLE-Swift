@@ -57,6 +57,7 @@ hardware and without mocking Apple's classes.
 ### Staying connected
 
 - <doc:Reconnection>
+- <doc:BackgroundModes>
 
 ### Going lower level
 
@@ -95,6 +96,7 @@ hardware and without mocking Apple's classes.
 
 - ``Central/Configuration``
 - ``ReconnectPolicy``
+- ``Central/restoredConnections``
 
 ### Logging
 

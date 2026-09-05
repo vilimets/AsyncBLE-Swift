@@ -82,8 +82,9 @@ final class Monitor: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 ## Contents
 
 [Why](#why) · [Installation](#installation) · [Usage](#usage) · [Reconnection](#reconnection) ·
-[Errors](#errors) · [Diagnostics](#diagnostics) · [Limits](#limits) ·
-[Documentation](#documentation) · [Roadmap](#roadmap) · [Non-goals](#non-goals)
+[Background modes](#background-modes) · [Errors](#errors) · [Diagnostics](#diagnostics) ·
+[Limits](#limits) · [Documentation](#documentation) · [Roadmap](#roadmap) ·
+[Non-goals](#non-goals)
 
 ## Why
 
@@ -128,8 +129,8 @@ fails as `unauthorized` — it is the most common way to lose an afternoon here.
 
 ### Scan
 
-Filtering is strongly preferred: an unfiltered scan is much more expensive on battery, and it
-does not work at all in the background.
+Filtering is strongly preferred: an unfiltered scan is much more expensive on battery, and iOS
+refuses to run one at all in the background — a filtered scan keeps going there, slowly.
 
 ```swift
 let heartRate = ServiceID(string: "180D")
@@ -297,6 +298,36 @@ curve and no attempt counter, because there is nothing to retry: one request is 
 whole time. While reconnecting, reads and writes **fail fast** rather than queueing up behind
 an outage.
 
+## Background modes
+
+iOS suspends your app when the user leaves and terminates it some time later. With **state
+restoration**, the links survive that: the system holds them, relaunches the app in the
+background when something happens to one, and hands them back.
+
+Two things turn it on, and neither works without the other — `bluetooth-central` in the target's
+`UIBackgroundModes`, and a restore identifier that is *stable across launches*:
+
+```swift
+let central = Central(
+    configuration: .init(restoreIdentifier: "com.example.app.central")
+)
+
+for await connection in central.restoredConnections {
+    // Already connected. Re-subscribe: the peripheral is still notifying, so this
+    // attaches to the live subscription without a round trip.
+    for try await beat in try await connection.notifications(for: measurement) { … }
+}
+```
+
+`restoredConnections` replays, so there is no race to lose: restoration is delivered before your
+app runs a line of its own code, which makes every subscriber a late one.
+
+What survives is the link, its state, and the peripheral's notify flags. What does not is
+everything that lived in the old process — the `Connection` objects, the notification streams,
+the discovery cache. So: re-subscribe to what you care about, and `disconnect()` what you do
+not. Full walkthrough, including how to test it on a device, in
+[Running in the background](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/backgroundmodes/).
+
 ## Errors
 
 One error type, so a single `catch` covers the API — and the cases are the ones you would
@@ -367,6 +398,7 @@ Those need real API support; see the [roadmap](#roadmap).
 | [Getting started](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/gettingstarted/) | Install, permissions, and a session end to end |
 | [Connection lifecycle](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/connectionlifecycle/) | The four states and every transition between them |
 | [Reconnection](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/reconnection/) | What happens after a link drops, and how to bound it |
+| [Running in the background](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/backgroundmodes/) | Surviving termination, and picking the links back up |
 | [Logging and diagnostics](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/diagnostics/) | Levels, categories, and redirecting the output |
 | [Using the escape hatch](https://vilimets.github.io/AsyncBLE-Swift/documentation/asyncble/escapehatch/) | Reaching CoreBluetooth directly, and what that cannot do |
 
@@ -387,7 +419,6 @@ seam puts the delegate bridge, discovery cache and I/O queue under test against 
 Not in 0.1.0, in rough priority order:
 
 - RSSI read and monitoring — nothing covers it today, so it is first in line
-- Background modes and state restoration
 - Descriptor read/write
 - L2CAP channels
 - Multi-device connection helpers

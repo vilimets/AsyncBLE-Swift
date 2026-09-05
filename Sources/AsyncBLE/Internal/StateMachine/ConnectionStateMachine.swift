@@ -64,7 +64,7 @@ struct ConnectionStateMachine {
     ) -> Transition {
         switch state {
         case .disconnected(let reason):
-            return fromDisconnected(reason, on: event)
+            return fromDisconnected(reason, on: event, policy: policy)
         case .connecting:
             return fromConnecting(on: event)
         case .connected:
@@ -78,24 +78,48 @@ struct ConnectionStateMachine {
 // MARK: - Rows
 
 extension ConnectionStateMachine {
-    /// `disconnected` is terminal for everything except a fresh connect request.
+    /// `disconnected` is terminal for everything except a fresh connect request, or a
+    /// restoration adopting a machine that has not started yet.
     ///
-    /// A connection that has reached `disconnected` is finished: the owning central releases
-    /// it and any late CoreBluetooth callback — the `didDisconnect` that
+    /// A connection that has reached `disconnected` *with a reason* is finished: the owning
+    /// central releases it and any late CoreBluetooth callback — the `didDisconnect` that
     /// arrives after the `cancelPeripheralConnection` we asked for, most often — lands here
     /// and is dropped rather than resurrecting a dead machine.
     private static func fromDisconnected(
         _ reason: DisconnectReason?,
-        on event: ConnectionEvent
+        on event: ConnectionEvent,
+        policy: ReconnectPolicy
     ) -> Transition {
-        guard case .connectRequested(let timeout) = event else {
+        switch event {
+        case .connectRequested(let timeout):
+            var effects: [ConnectionEffect] = [.armConnect]
+            if let timeout {
+                effects.append(.startConnectTimeout(timeout))
+            }
+            return Transition(state: .connecting, effects: effects)
+
+        case .restored(let connected):
+            // Only ever onto a machine that has not started: restoration builds its connection
+            // fresh. A `reason` here means this one already ended, and a terminal machine stays
+            // terminal — the same rule every other late event meets.
+            guard reason == nil else {
+                return Transition(state: .disconnected(reason: reason), effects: [])
+            }
+            guard connected else {
+                // Not a link but a pending connect the OS kept holding across the relaunch,
+                // which is what `reconnecting` already means. Re-arming is how the library's
+                // model becomes true again — CoreBluetooth treats a duplicate connect for a
+                // request it is already holding as a no-op.
+                return dropped(reason: .linkLost, armImmediately: true, policy: policy)
+            }
+            // The link is up, and nothing was armed to cancel or time out. The cache is empty
+            // rather than stale, but invalidating says so in one place instead of two.
+            return Transition(state: .connected, effects: [.invalidateDiscoveryCache])
+
+        case .didConnect, .didFailToConnect, .didDisconnect, .connectTimedOut,
+             .disconnectRequested, .reArmTimerFired, .giveUpDeadlineReached, .adapterChanged:
             return Transition(state: .disconnected(reason: reason), effects: [])
         }
-        var effects: [ConnectionEffect] = [.armConnect]
-        if let timeout {
-            effects.append(.startConnectTimeout(timeout))
-        }
-        return Transition(state: .connecting, effects: effects)
     }
 
     /// A bounded attempt is in flight. Nothing here consults the reconnect policy: the policy
@@ -126,10 +150,12 @@ extension ConnectionStateMachine {
             // caller is awaiting an answer — so this fails rather than becoming a wait.
             return terminate(.bluetoothUnavailable(reason: reason), cancelling: [.cancelConnectTimeout])
 
-        case .connectRequested, .adapterChanged(.poweredOn), .reArmTimerFired, .giveUpDeadlineReached:
+        case .connectRequested, .adapterChanged(.poweredOn), .reArmTimerFired,
+             .giveUpDeadlineReached, .restored:
             // A second connect coalesces onto this attempt; each caller's own
             // deadline is the central's business, not the machine's. The rest are
-            // stale timers from a previous state.
+            // stale timers from a previous state, or a restoration for a machine that is
+            // already doing what it would have asked for.
             return Transition(state: .connecting, effects: [])
         }
     }
@@ -153,9 +179,9 @@ extension ConnectionStateMachine {
             return dropped(reason: .bluetoothUnavailable(reason: reason), armImmediately: false, policy: policy)
 
         case .connectRequested, .didConnect, .didFailToConnect, .connectTimedOut,
-             .reArmTimerFired, .giveUpDeadlineReached, .adapterChanged(.poweredOn):
+             .reArmTimerFired, .giveUpDeadlineReached, .adapterChanged(.poweredOn), .restored:
             // A connect request finds the link already up and returns it. The rest are late
-            // duplicates or stale timers.
+            // duplicates, stale timers, or a restoration for a link this machine already has.
             return Transition(state: .connected, effects: [])
         }
     }
@@ -245,9 +271,9 @@ extension ConnectionStateMachine {
         case .didDisconnect(_, userInitiated: true), .disconnectRequested:
             return terminate(.userInitiated, cancelling: [.cancelGiveUpDeadline, .cancelReArmTimer])
 
-        case .didDisconnect(_, userInitiated: false), .connectRequested, .connectTimedOut:
+        case .didDisconnect(_, userInitiated: false), .connectRequested, .connectTimedOut, .restored:
             // A late duplicate drop, or a connect request that has just found the wait it was
-            // about to start. Both are already what this state is doing.
+            // about to start. All of them are already what this state is doing.
             return Transition(state: .reconnecting(arm: arm), effects: [])
         }
     }

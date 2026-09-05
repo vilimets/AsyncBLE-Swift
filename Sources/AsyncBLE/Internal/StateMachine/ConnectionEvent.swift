@@ -1,6 +1,6 @@
 // Inputs to the state machine: connectRequested, didConnect, didFailToConnect,
 // didDisconnect(error:userInitiated:), connectTimedOut, disconnectRequested, reArmTimerFired,
-// giveUpDeadlineReached, adapterChanged(AdapterState).
+// giveUpDeadlineReached, adapterChanged(AdapterState), restored(connected:).
 //
 // `reconnectTimerFired` is gone with the backoff curve; re-arming is now an optional cadence
 // rather than the mechanism.
@@ -53,4 +53,11 @@ enum ConnectionEvent: Sendable, Equatable {
 
     /// The Bluetooth adapter's availability changed.
     case adapterChanged(AdapterState)
+
+    /// iOS handed this connection back after relaunching the app, and it starts life mid-story
+    /// rather than at `disconnected`.
+    ///
+    /// - Parameter connected: Whether the link is up. `false` means the OS was still holding a
+    ///   pending connect on the library's behalf, which is a reconnect wait by another name.
+    case restored(connected: Bool)
 }

@@ -194,6 +194,20 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
         handle(.adapterChanged(state))
     }
 
+    // MARK: Restoration
+
+    /// Adopts a link iOS handed back after relaunching the app.
+    ///
+    /// Not part of ``ConnectionSink``: restoration arrives at the ``Central``, which has to
+    /// build this connection before there is a sink to route to.
+    ///
+    /// - Parameter connected: Whether the link is up, as against a pending connect the OS kept
+    ///   holding.
+    func handleRestored(connected: Bool) {
+        library.assertIsolated()
+        handle(.restored(connected: connected))
+    }
+
     // MARK: The loop
 
     private func handle(_ event: ConnectionEvent) {

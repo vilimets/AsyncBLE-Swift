@@ -255,7 +255,14 @@ public actor Connection {
 
         // A second subscriber to a live characteristic joins the first rather than touching the
         // radio: CoreBluetooth has one notify flag per characteristic, not one per caller.
-        let alreadyLive = core.hasSubscribers(for: characteristic)
+        //
+        // `isNotifying` is the same question asked of the peripheral rather than of this
+        // process, and it is what makes restoration cheap: iOS keeps the flag set across a
+        // background relaunch, so the first subscriber after one finds a characteristic already
+        // delivering and attaches to it instead of paying a round trip to re-enable what is
+        // already enabled. Turning it off is unchanged — the registry does that when its last
+        // subscriber leaves.
+        let alreadyLive = core.hasSubscribers(for: characteristic) || resolved.isNotifying
         let (subscription, stream) = core.subscribe(to: characteristic, bufferingPolicy: bufferingPolicy)
         guard !alreadyLive else { return stream }
 

@@ -36,6 +36,13 @@ final class FakePeripheral: PeripheralSeam, @unchecked Sendable {
     var name: String?
     weak var seamDelegate: PeripheralSeamDelegate?
 
+    /// Where the link stands, as the radio would report it.
+    ///
+    /// Settable rather than derived from the emitted callbacks: restoration is handed a
+    /// peripheral with no history behind it, and this is what a test uses to say "iOS gave this
+    /// one back still connected".
+    var linkState: PeripheralLinkState = .disconnected
+
     /// Whether the radio has room for a write-without-response. Set it `false` to park a write
     /// on flow control, then use ``reportReadyForWriteWithoutResponse()`` to let it go.
     var canSendWriteWithoutResponse = true

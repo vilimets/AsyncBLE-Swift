@@ -19,6 +19,7 @@ final class LivePeripheral: NSObject, PeripheralSeam, @unchecked Sendable {
 
     var identifier: UUID { peripheral.identifier }
     var name: String? { peripheral.name }
+    var linkState: PeripheralLinkState { PeripheralLinkState(peripheral.state) }
     var canSendWriteWithoutResponse: Bool { peripheral.canSendWriteWithoutResponse }
     var services: [ServiceSeam] { (peripheral.services ?? []).map(wrapper(for:)) }
     var rawPeripheral: CBPeripheral? { peripheral }
@@ -170,6 +171,19 @@ final class LiveCharacteristic: CharacteristicSeam, @unchecked Sendable {
 
     init(_ characteristic: CBCharacteristic) {
         self.characteristic = characteristic
+    }
+}
+
+extension PeripheralLinkState {
+    /// Maps `CBPeripheralState`, folding `disconnecting` into `disconnected` — a cancel in
+    /// flight is not a link anyone can adopt.
+    init(_ state: CBPeripheralState) {
+        switch state {
+        case .connected: self = .connected
+        case .connecting: self = .connecting
+        case .disconnected, .disconnecting: self = .disconnected
+        @unknown default: self = .disconnected
+        }
     }
 }
 

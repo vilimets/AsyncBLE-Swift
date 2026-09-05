@@ -64,6 +64,82 @@ struct DisconnectedTransitionTests {
     }
 }
 
+@Suite("State machine: restoration")
+struct RestorationTransitionTests {
+    private func restoring(
+        from state: ConnectionState,
+        connected: Bool,
+        policy: ReconnectPolicy = .waitIndefinitely()
+    ) -> ConnectionStateMachine.Transition {
+        ConnectionStateMachine.transition(from: state, on: .restored(connected: connected), policy: policy)
+    }
+
+    @Test("a restored live link lands connected, arming nothing")
+    func restoredConnected() {
+        // Nothing to arm and no deadline to cancel: the link is already up. The cache is
+        // invalidated because it is empty, which is the same thing said once.
+        let result = restoring(from: .disconnected(reason: nil), connected: true)
+        #expect(result.state == .connected)
+        #expect(result.effects == [.invalidateDiscoveryCache])
+    }
+
+    @Test("a restored pending connect becomes a reconnect wait")
+    func restoredConnecting() {
+        let result = restoring(from: .disconnected(reason: nil), connected: false)
+        #expect(result.state == .reconnecting(arm: 1))
+        #expect(result.effects == [
+            .endPendingOperations(reason: .linkLost),
+            .invalidateDiscoveryCache,
+            .markSubscriptionsForRestore,
+            .armConnect
+        ])
+    }
+
+    @Test("a restored pending connect picks up a bounded policy's deadline")
+    func restoredConnectingBounded() {
+        let result = restoring(
+            from: .disconnected(reason: nil),
+            connected: false,
+            policy: .giveUp(after: .seconds(30))
+        )
+        #expect(result.state == .reconnecting(arm: 1))
+        #expect(result.effects == [
+            .endPendingOperations(reason: .linkLost),
+            .invalidateDiscoveryCache,
+            .markSubscriptionsForRestore,
+            .startGiveUpDeadline(.seconds(30)),
+            .armConnect
+        ])
+    }
+
+    @Test("a restored pending connect under `.never` ends rather than waits")
+    func restoredConnectingUnderNever() {
+        // `.never` means do not wait for a link that dropped, and a pending connect the OS is
+        // holding *is* that wait.
+        let result = restoring(from: .disconnected(reason: nil), connected: false, policy: .never)
+        #expect(result.state == .disconnected(reason: .linkLost))
+        #expect(result.effects == terminalEffects(.linkLost))
+    }
+
+    @Test("a machine that already ended stays ended", arguments: [true, false])
+    func restoringATerminalMachineIsIgnored(connected: Bool) {
+        let result = restoring(from: .disconnected(reason: .userInitiated), connected: connected)
+        #expect(result.state == .disconnected(reason: .userInitiated))
+        #expect(result.effects.isEmpty)
+    }
+
+    @Test("a machine already in flight ignores it", arguments: [
+        ConnectionState.connecting,
+        .connected,
+        .reconnecting(arm: 2)
+    ])
+    func restoringAnActiveMachineIsIgnored(state: ConnectionState) {
+        let result = restoring(from: state, connected: true)
+        #expect(result.state == state)
+        #expect(result.effects.isEmpty)
+    }
+}
+
 @Suite("State machine: leaving connecting")
 struct ConnectingTransitionTests {
     private func transition(on event: ConnectionEvent) -> ConnectionStateMachine.Transition {

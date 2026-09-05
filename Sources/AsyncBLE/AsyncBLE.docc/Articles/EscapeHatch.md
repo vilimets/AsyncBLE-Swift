@@ -55,8 +55,8 @@ because nothing else covers it.
 
 If you find yourself wanting to mutate through `withRaw`, that is a signal worth acting on
 rather than working around. Open an issue describing the use case. Several capabilities are
-already planned — descriptor access, RSSI monitoring, L2CAP channels, background state
-restoration — and a concrete use case is what moves one up the list.
+already planned — descriptor access, RSSI monitoring, L2CAP channels — and a concrete use case
+is what moves one up the list.
 
 Until then, an escape hatch you use read-only is a safety valve. One you use to steer is a bug
 waiting for a bad day.

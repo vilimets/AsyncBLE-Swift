@@ -22,6 +22,10 @@ The `NSBluetoothAlwaysUsageDescription` string is set in build settings (`GENERA
 is on, so there is no `Info.plist` to edit). Without it iOS never shows the permission prompt and
 the adapter reports `unauthorized` forever — a mistake worth knowing by sight.
 
+`UIBackgroundModes` is set there too, to `bluetooth-central`, and the app's central carries a
+restore identifier. That pair is what makes step 7 below possible; neither half does anything
+alone.
+
 ## Reading the log
 
 The device screen's transitions list is timestamped and merges every event — connect, read,
@@ -67,6 +71,16 @@ Worth doing at least once, in this order:
    policy the connection should stay `reconnecting` and pick up again when you turn it back on.
 6. **Disconnect.** The state stream finishes, the notification stream finishes without throwing,
    and the connection drops off `Central.activeConnections`.
+7. **Get terminated and relaunched.** The one path no automated test can reach, and the reason
+   this app opts into state restoration:
+   1. Connect and subscribe to something that notifies. Background the app.
+   2. Stop it **from Xcode** — press Stop. Do *not* swipe up in the app switcher: that is the
+      user saying "stop doing things", and iOS honours it by never relaunching the app.
+   3. Walk the peripheral out of range and back, so the pending connect the OS is holding is
+      fulfilled and the app is relaunched in the background.
+   4. Attach the debugger — Xcode ▸ Debug ▸ Attach to Process by PID or Name — and bring the app
+      to the foreground. The scan list should show a **Restored after a relaunch** section with
+      the peripheral's identifier in it, and opening it should subscribe without a reconnect.
 
 ## What it is not
 

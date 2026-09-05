@@ -7,7 +7,8 @@ public struct ScanOptions: Sendable, Equatable {
     /// The service UUIDs a peripheral must advertise to be reported. Empty reports everything.
     ///
     /// Filtering is strongly preferred: an unfiltered scan is significantly more expensive on
-    /// battery, and it does not work at all while the app is in the background. Empty is for
+    /// battery, and iOS refuses to run one at all while the app is in the background — a
+    /// filtered scan keeps going there, slowly (<doc:BackgroundModes>). Empty is for
     /// development and for genuine "show me everything" tools.
     ///
     /// > Important: Empty means *everything*, not *nothing*. Filtering on a list that turned

@@ -22,6 +22,7 @@ enum SeamEvent: Equatable {
     case wroteValue(CBUUID, NSError?)
     case updatedNotificationState(CBUUID, isNotifying: Bool, NSError?)
     case readyForWriteWithoutResponse(UUID)
+    case willRestore([UUID], wasScanning: Bool)
 }
 
 /// Records everything both seam delegates deliver, in order.
@@ -58,6 +59,10 @@ final class SeamRecorder: CentralSeamDelegate, PeripheralSeamDelegate, @unchecke
 
     func centralSeam(_ seam: CentralSeam, didDisconnect peripheral: PeripheralSeam, error: NSError?) {
         events.append(.disconnected(peripheral.identifier, error))
+    }
+
+    func centralSeam(_ seam: CentralSeam, willRestore peripherals: [PeripheralSeam], wasScanning: Bool) {
+        events.append(.willRestore(peripherals.map(\.identifier), wasScanning: wasScanning))
     }
 
     // MARK: PeripheralSeamDelegate
