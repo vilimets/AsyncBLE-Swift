@@ -1,4 +1,4 @@
-// A characteristic identifier that remembers what its bytes mean (PLAN.md §7 Q24).
+// A characteristic identifier that remembers what its bytes mean.
 
 @preconcurrency import CoreBluetooth
 
@@ -24,7 +24,7 @@
 /// The untyped API is unchanged and remains the lower layer: ``Connection/read(_:)->Data`` and its
 /// siblings still take a bare ``CharacteristicID`` and deal in `Data`. `Characteristic<Data>`
 /// is the same thing spelled typed, if you want one style throughout.
-public struct Characteristic<Value>: Sendable {
+public struct Characteristic<Value>: Sendable, Equatable, Hashable {
     /// The characteristic's UUID.
     public let id: CharacteristicID
 
@@ -46,20 +46,8 @@ public struct Characteristic<Value>: Sendable {
     }
 }
 
-// Equality is the UUID's. Synthesis would demand `Value: Equatable` for a type that stores no
-// `Value` at all, so it is written out.
-extension Characteristic: Equatable {
-    public static func == (lhs: Characteristic, rhs: Characteristic) -> Bool {
-        lhs.id == rhs.id
-    }
-}
-
-extension Characteristic: Hashable {
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-}
-
+// Equality and hashing are the UUID's: derived conformances are generated from stored property
+// types, and `Value` is a phantom that stores nothing, so synthesis does not constrain it.
 extension Characteristic: CustomStringConvertible {
     public var description: String { id.uuidString }
 }

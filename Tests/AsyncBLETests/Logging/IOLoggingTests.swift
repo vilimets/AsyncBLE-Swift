@@ -74,7 +74,7 @@ struct IOLoggingTests {
 
         _ = await errorThrown { try await rig.connection.read(TestUUID.absent) }
 
-        #expect(rig.logRecorder!.contains(level: .info, category: .discovery, messageContains: "not found"))
+        #expect(rig.logRecorder!.contains(level: .info, category: .gatt, messageContains: "not found"))
     }
 
     @Test("the discovery walk is logged from start to finish")
@@ -84,8 +84,8 @@ struct IOLoggingTests {
         _ = try await rig.connection.read(TestUUID.batteryLevel)
 
         let recorder = rig.logRecorder!
-        #expect(recorder.contains(level: .info, category: .discovery, messageContains: "walking discovery"))
-        #expect(recorder.contains(level: .info, category: .discovery, messageContains: "discovery complete"))
+        #expect(recorder.contains(level: .info, category: .gatt, messageContains: "walking discovery"))
+        #expect(recorder.contains(level: .info, category: .gatt, messageContains: "discovery complete"))
     }
 
     @Test("the discovery cache flush on a reconnect is logged")
@@ -95,6 +95,6 @@ struct IOLoggingTests {
         _ = try await rig.connection.read(TestUUID.batteryLevel)
         rig.dropLink()
 
-        #expect(rig.logRecorder!.contains(level: .notice, category: .discovery, messageContains: "flushed"))
+        #expect(rig.logRecorder!.contains(level: .notice, category: .gatt, messageContains: "flushed"))
     }
 }

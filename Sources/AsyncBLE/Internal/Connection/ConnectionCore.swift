@@ -23,7 +23,7 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
     /// The state stream behind ``Connection/states``.
     let states: Broadcaster<ConnectionState>
 
-    /// The FIFO every read and write passes through (PLAN.md §7 Q4, Q11).
+    /// The FIFO every read and write passes through.
     let ioQueue = IOQueue()
 
     /// Lazy discovery for this link. Flushed and rebuilt on every reconnect.
@@ -33,7 +33,7 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
     let subscriptions: SubscriptionRegistry
 
     /// Called once, when the connection reaches terminal `disconnected`, so the central can let
-    /// it go. PLAN.md §7 Q9 makes that an explicit decision rather than something ARC works out.
+    /// it go. That is an explicit decision rather than something ARC works out.
     var onTerminated: (() -> Void)?
 
     /// The actor on top, for the two jobs that need to await: restoring subscriptions after a
@@ -47,20 +47,24 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
     private let scheduler: Scheduler
     private var machine: ConnectionStateMachine
 
-    /// Logging, shared with the owning ``Central``. See PLAN.md §7 Q22.
+    /// Logging, shared with the owning ``Central``. Init-only, so it never changes under us.
     let log: LogFacility
 
+    // Stored rather than computed: `ioLog` is touched one to three times per read or write,
+    // and each `scoped(_:)` builds a fresh `Log`. `DiscoveryCache` and `SubscriptionRegistry`
+    // already store theirs.
+
     /// Logging bound to the `connection` category — state-machine transitions and effects.
-    var connLog: Log { log.scoped(.connection) }
+    let connLog: Log
 
     /// Logging bound to the `io` category — reads, writes, notification subscriptions.
-    var ioLog: Log { log.scoped(.io) }
+    let ioLog: Log
 
     /// Logging bound to the `reconnect` category — arming, deadlines, subscription restore.
-    var reconnectLog: Log { log.scoped(.reconnect) }
+    let reconnectLog: Log
 
-    /// Logging bound to the `discovery` category — the service/characteristic walk.
-    var discoveryLog: Log { log.scoped(.discovery) }
+    /// Logging bound to the `gatt` category — the service/characteristic walk.
+    let gattLog: Log
 
     /// The peripheral identifier, as log metadata.
     var peripheralMetadata: [String: String] { ["peripheral": peripheralID.uuidString] }
@@ -104,6 +108,10 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
         self.library = library
         self.scheduler = scheduler
         self.log = log
+        connLog = log.scoped(.connection)
+        ioLog = log.scoped(.io)
+        reconnectLog = log.scoped(.reconnect)
+        gattLog = log.scoped(.gatt)
         machine = ConnectionStateMachine(policy: policy)
         cache = DiscoveryCache(peripheral: peripheral, log: log)
         subscriptions = SubscriptionRegistry(library: library, log: log)
@@ -150,7 +158,7 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
 
     /// Detaches one waiting caller, and withdraws the attempt if it was the last.
     ///
-    /// PLAN.md §7 Q10: cancelling one caller detaches that caller only. The attempt continues
+    /// Cancelling one caller detaches that caller only. The attempt continues
     /// while anyone is still waiting, and is cancelled when the last one goes — which refcounts
     /// the *attempt*, not the link, because an in-flight attempt has no device-wide effect.
     func removeConnectWaiter(_ id: UUID) {
@@ -177,7 +185,7 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
     func handleDisconnected(_ error: NSError?) {
         // Always `userInitiated: false`. A disconnect this library asked for has already moved
         // the machine to `disconnected`, where this late callback lands and is ignored — so the
-        // flag from PLAN.md §2 is carried by the machine's own state rather than by a variable
+        // flag is carried by the machine's own state rather than by a variable
         // that could get out of step with it.
         handle(.didDisconnect(error, userInitiated: false))
     }
@@ -207,13 +215,14 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
     /// Logs a state transition — `notice` when the machine enters `reconnecting` or a terminal
     /// `disconnected`, `info` for the routine connecting/connected steps.
     private func logTransition(from before: ConnectionState, on event: ConnectionEvent, to after: ConnectionState) {
-        let message = "\(before) --\(event)--> \(after)"
-        let metadata = ["peripheral": peripheralID.uuidString]
+        // Interpolation stays inside the autoclosure: none of these types are
+        // `CustomStringConvertible`, so each `\(...)` costs reflection — paid on every
+        // transition, even with logging off, if it were hoisted into a `let`.
         switch after {
         case .reconnecting, .disconnected(.some):
-            connLog.notice(message, metadata)
+            connLog.notice("\(before) --\(event)--> \(after)", peripheralMetadata)
         case .connecting, .connected, .disconnected(nil):
-            connLog.info(message, metadata)
+            connLog.info("\(before) --\(event)--> \(after)", peripheralMetadata)
         }
     }
 
@@ -225,7 +234,7 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
             resumeConnectWaiters(with: .success(()))
         case .disconnected(let reason?):
             // Terminal. Everyone still waiting learns why, the central stops routing to a
-            // connection that will never be used again (PLAN.md §7 Q9), and the state stream
+            // connection that will never be used again, and the state stream
             // ends because nothing else can ever be sent on it.
             resumeConnectWaiters(with: .failure(waiterError(for: reason)))
             bridge.unregister(peripheralID: peripheralID)
@@ -249,8 +258,8 @@ final class ConnectionCore: ConnectionSink, @unchecked Sendable {
     private func waiterError(for reason: DisconnectReason) -> BluetoothError {
         switch reason {
         case .connectTimeout: .connectTimeout
-        case .connectFailed: .connectionFailed(underlying: lastConnectError)
-        case .bluetoothUnavailable(let unavailable): .bluetoothUnavailable(reason: unavailable)
+        case .connectionFailed: .connectionFailed(underlying: lastConnectError)
+        case .bluetoothUnavailable(reason: let unavailable): .bluetoothUnavailable(reason: unavailable)
         case .userInitiated, .linkLost, .reconnectGaveUp: .disconnected(reason: reason)
         }
     }

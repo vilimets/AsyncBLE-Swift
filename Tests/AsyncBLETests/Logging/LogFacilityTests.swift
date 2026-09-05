@@ -10,7 +10,7 @@ struct LogFacilityTests {
     @Test("a disabled facility emits nothing")
     func disabledEmitsNothing() {
         let recorder = RecordingLogHandler()
-        let facility = LogFacility(isEnabled: false, minimumLevel: .debug, handler: recorder)
+        let facility = LogFacility(minimumLevel: nil, handler: recorder)
 
         facility.scoped(.connection).error("something went wrong")
 
@@ -20,7 +20,7 @@ struct LogFacilityTests {
     @Test("levels below the threshold are dropped")
     func thresholdGating() {
         let recorder = RecordingLogHandler()
-        let facility = LogFacility(isEnabled: true, minimumLevel: .notice, handler: recorder)
+        let facility = LogFacility(minimumLevel: .notice, handler: recorder)
         let log = facility.scoped(.io)
 
         log.debug("trace")
@@ -34,7 +34,7 @@ struct LogFacilityTests {
     @Test("a suppressed call never evaluates its message")
     func autoclosureNotEvaluatedWhenSuppressed() {
         let recorder = RecordingLogHandler()
-        let facility = LogFacility(isEnabled: true, minimumLevel: .error, handler: recorder)
+        let facility = LogFacility(minimumLevel: .error, handler: recorder)
         let built = Flag()
 
         facility.scoped(.bridge).debug(built.markAndReturn("expensive"))
@@ -46,7 +46,7 @@ struct LogFacilityTests {
     @Test("an emitted call does evaluate its message, once")
     func autoclosureEvaluatedWhenEmitted() {
         let recorder = RecordingLogHandler()
-        let facility = LogFacility(isEnabled: true, minimumLevel: .debug, handler: recorder)
+        let facility = LogFacility(minimumLevel: .debug, handler: recorder)
         let built = Flag()
 
         facility.scoped(.bridge).debug(built.markAndReturn("cheap enough"))

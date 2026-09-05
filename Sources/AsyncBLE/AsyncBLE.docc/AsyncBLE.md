@@ -24,9 +24,10 @@ CoreBluetooth types stay out of the public API. The one deliberate exception is 
 as an identifier, plus the objects handed to the `withRaw` escape hatch when you need them. See
 <doc:EscapeHatch>.
 
-In characteristic positions that type is spelled ``CharacteristicID``, so addressing a
-characteristic needs no CoreBluetooth import — the `Example/` app has none. Service positions
-keep Apple's name, because they hold the same type in a different role.
+In characteristic positions that type is spelled ``CharacteristicID``, and in service positions
+``ServiceID`` — the same type, named for the role it is playing. So neither addressing a
+characteristic nor filtering a scan obliges you to import CoreBluetooth: the `Example/` app has
+no such import, and neither does the test that guards the claim.
 
 ### Layering
 
@@ -80,13 +81,14 @@ hardware and without mocking Apple's classes.
 - ``AdapterState``
 - ``Connection/WriteMode``
 
-### Addressing characteristics
+### Addressing services and characteristics
 
+- ``ServiceID``
 - ``CharacteristicID``
 - ``Characteristic``
 - ``CharacteristicDecodable``
 - ``CharacteristicEncodable``
-- ``CharacteristicValue``
+- ``CharacteristicCodable``
 - ``CharacteristicDecodingError``
 
 ### Configuration
@@ -96,7 +98,7 @@ hardware and without mocking Apple's classes.
 
 ### Logging
 
-- ``Logging``
+- ``LogConfiguration``
 - ``LogLevel``
 - ``LogCategory``
 - ``LogRecord``

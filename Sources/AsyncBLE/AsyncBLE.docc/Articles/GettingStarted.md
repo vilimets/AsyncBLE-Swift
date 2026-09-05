@@ -4,9 +4,6 @@ Add the package, scan for a peripheral, connect to it, and read a characteristic
 
 ## Overview
 
-> Note: The API ships in 0.1.0 and this article is written against it as it lands. Code samples
-> arrive with the Phase 1 API surface; the shape below is the contract the design is held to.
-
 ### Installation
 
 Add AsyncBLE to your `Package.swift`:
@@ -40,17 +37,57 @@ Bluetooth does not work in the simulator. Test on a device.
 
 ### The shape of a session
 
-A typical session has four steps, and AsyncBLE keeps each one to a single expression:
+Scan, connect, read, disconnect — each one expression, no delegates:
 
-1. Create a central, optionally with a configuration that sets the connect timeout and the
-   reconnect policy.
-2. Scan, filtering by service UUID, and consume discoveries from an `AsyncStream`.
-3. Connect, awaiting a `Connection` or catching a typed error.
-4. Read, write, or subscribe to characteristics by UUID. Service and characteristic discovery
-   happens lazily underneath, is cached, and is rebuilt for you if the link drops and returns.
+```swift
+import AsyncBLE
 
-You never write a delegate, and you never see a `CBPeripheral` unless you ask for one through
-<doc:EscapeHatch>.
+let heartRate = ServiceID(string: "180D")
+let measurement = CharacteristicID(string: "2A37")
+
+let central = Central()
+
+for await device in try await central.scan(services: [heartRate]) {
+    let connection = try await central.connect(device)
+
+    // One-shot read.
+    let bytes = try await connection.read(measurement)
+    print("\(bytes.count) bytes")
+
+    // Or subscribe, and let the peripheral push.
+    for try await notification in try await connection.notifications(for: measurement) {
+        print(notification)
+        break
+    }
+
+    await connection.disconnect()
+    break
+}
+```
+
+Service and characteristic discovery happens lazily underneath, is cached for as long as the
+link lives, and is rebuilt for you if the link drops and returns. Note there is no
+`import CoreBluetooth`: ``ServiceID`` and ``CharacteristicID`` are the library's names for the
+one Apple type that reaches the public API, so you never see a `CBPeripheral` unless you ask for
+one through <doc:EscapeHatch>.
+
+### Giving a characteristic a type
+
+Addressing by UUID gets you `Data`. If you would rather deal in your own types, declare the
+characteristic once with the type it carries and the decoding follows every call site:
+
+```swift
+enum Battery {
+    static let level = Characteristic<UInt8>("2A19")
+}
+
+let percent = try await connection.read(Battery.level)   // UInt8, not Data
+```
+
+`UInt8` through `Int64`, `String` and `Data` are supported out of the box; conform your own
+types to ``CharacteristicDecodable`` (and ``CharacteristicEncodable`` to write them). The typed
+calls are the untyped ones with a codec wrapped around them — same queueing, same discovery,
+same reconnect behaviour.
 
 Bluetooth being switched off is not an exception to handle once — it is a state to observe.
 `adapterStates` on the central tells you when it changes, which is what a "Bluetooth is off"
@@ -60,3 +97,5 @@ banner should be driven by.
 
 - <doc:ConnectionLifecycle> explains the states a connection moves through and when.
 - <doc:Reconnection> covers what happens after the link drops.
+- <doc:Diagnostics> covers what the library logs and how to redirect it.
+- <doc:EscapeHatch> is there for the parts of CoreBluetooth this library does not wrap.

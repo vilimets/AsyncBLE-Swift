@@ -5,10 +5,11 @@ read the scope contract before opening a pull request.
 
 ## Scope first
 
-The [README](README.md) lists what is in scope for 0.1.0, what is permanently out of scope, and
-what is planned for later. Pull requests implementing anything outside "In scope" will be closed
-with a pointer to the relevant issue — not because the idea is bad, but because keeping the
-surface small is the point of this library.
+The README's [Roadmap](README.md#roadmap) lists what is planned for later, and
+[Non-goals](README.md#non-goals) lists what will never be added. A pull request implementing
+something from Non-goals will be closed with a pointer to that section — not because the idea is
+bad, but because keeping the surface small is the point of this library. Roadmap items are
+welcome, but open an issue first so we agree on the shape.
 
 Open an issue before writing code for anything larger than a bug fix.
 

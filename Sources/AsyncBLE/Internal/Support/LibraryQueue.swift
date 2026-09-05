@@ -9,9 +9,9 @@
 //      none of which are thread-safe — have exactly one thread touching them.
 //   2. Callbacks need no hop to reach the engine, so nothing can be reordered on the way in.
 //      An unstructured `Task { await ... }` per callback would lose delivery order, which is
-//      precisely what the FIFO queue exists to preserve (PLAN.md §7 Q4).
+//      precisely what the FIFO queue exists to preserve.
 //   3. `withRaw` can promise "the closure runs on the library's queue" and have it be true by
-//      construction rather than by convention (PLAN.md §7 Q6).
+//      construction rather than by convention.
 
 import Foundation
 

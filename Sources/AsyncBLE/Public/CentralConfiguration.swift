@@ -1,7 +1,6 @@
 // Tunables passed to `Central` at init: connect timeout, reconnect policy, power alert.
 //
-// `restoreIdentifier` is deliberately absent in 0.1.0 — it ships with the background milestone
-// (PLAN.md §3: no config knobs that do nothing).
+// `restoreIdentifier` is deliberately absent in 0.1.0 — it ships with the background milestone.
 
 import Foundation
 
@@ -9,8 +8,7 @@ extension Central {
     /// Tunables for a ``Central``, fixed at initialization.
     ///
     /// There is deliberately no `restoreIdentifier` here. State restoration needs background
-    /// modes to mean anything, and this library does not ship a knob that does nothing
-    /// (PLAN.md §3).
+    /// modes to mean anything, and this library does not ship a knob that does nothing.
     public struct Configuration: Sendable, Equatable {
         /// How long a connect attempt may run before it fails with
         /// ``BluetoothError/connectTimeout``.
@@ -20,7 +18,7 @@ extension Central {
         /// one, which is the whole reason the setting exists.
         ///
         /// Applies to ``Central/connect(_:timeout:)-(UUID,_)`` only. Reconnection after a drop, and
-        /// ``Central/connectWhenAvailable(_:)``, both deliberately rely on the OS keeping the
+        /// ``Central/connectWhenInRange(_:)``, both deliberately rely on the OS keeping the
         /// request pending instead.
         public var connectTimeout: Duration
 

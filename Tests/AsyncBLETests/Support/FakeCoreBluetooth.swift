@@ -33,7 +33,7 @@ final class FakeCentral: CentralSeam, @unchecked Sendable {
     private(set) var adapterState: AdapterState
 
     /// Peripherals the "system" already knows about, for `peripheral(withID:)` to find — the
-    /// path `connectWhenAvailable(_:)` takes when there has been no scan this session.
+    /// path `connectWhenInRange(_:)` takes when there has been no scan this session.
     var knownPeripherals: [UUID: FakePeripheral] = [:]
 
     private(set) var calls: [Call] = []

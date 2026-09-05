@@ -1,4 +1,4 @@
-// Logging is an observer of the state machine, not a change to it. These drive a connection
+// LogConfiguration is an observer of the state machine, not a change to it. These drive a connection
 // through the transitions that matter and assert the library said what happened.
 
 import Testing
@@ -23,7 +23,7 @@ struct ConnectionLoggingTests {
         rig.connect()
         rig.dropLink()
 
-        #expect(rig.state == .reconnecting(attempt: 1))
+        #expect(rig.state == .reconnecting(arm: 1))
         #expect(
             rig.logRecorder!.contains(level: .notice, category: .connection, messageContains: "reconnecting")
         )

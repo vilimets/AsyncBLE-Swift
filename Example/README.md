@@ -60,7 +60,7 @@ Worth doing at least once, in this order:
    than the second — the state transition list shows nothing in between, which is the point.
 3. **Subscribe** to something that notifies. `2A37` on a heart-rate strap.
 4. **Walk out of range with the screen open.** This is the test the whole library exists for:
-   the state list should show `connected → reconnecting(attempt: 1)`, and the notification
+   the state list should show `connected → reconnecting(arm: 1)`, and the notification
    stream should keep going — not throw, not finish — when you walk back and it returns to
    `connected`. Nothing in the app re-subscribes; the library does it underneath.
 5. **Turn Bluetooth off in Control Center while reconnecting.** With the default indefinite

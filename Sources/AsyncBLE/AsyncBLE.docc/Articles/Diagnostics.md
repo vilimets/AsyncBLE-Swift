@@ -1,4 +1,4 @@
-# Logging and diagnostics
+# LogConfiguration and diagnostics
 
 See what the library is doing — and why — without patching it.
 
@@ -6,7 +6,7 @@ See what the library is doing — and why — without patching it.
 
 Everything AsyncBLE does that you can observe through its API tells you *that* something
 happened: a state stream yields `reconnecting`, a `read` throws. None of it tells you *why* the
-reconnect gave up, or which discovery walk failed. Logging fills that gap.
+reconnect gave up, or which discovery walk failed. LogConfiguration fills that gap.
 
 The library logs to Apple's unified logging system (OSLog) by default. You configure it once,
 when you create the ``Central`` — there is no runtime setter, because OSLog is normally retuned
@@ -20,7 +20,7 @@ let central = Central()
 let central = Central(logging: .init(minimumLevel: .debug))
 
 // Off.
-let central = Central(logging: .init(isEnabled: false))
+let central = Central(logging: .disabled)
 ```
 
 ### Levels

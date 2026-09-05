@@ -1,5 +1,5 @@
 // The notification streams, and the bookkeeping that lets them outlive the link they were
-// created on (PLAN.md §7 Q2).
+// created on.
 //
 // A stream from `notifications(for:)` is a subscription to a characteristic, not to a link. So
 // this registry — not the discovery cache, and not CoreBluetooth's `isNotifying` flag — is the
@@ -20,7 +20,6 @@ final class SubscriptionRegistry: @unchecked Sendable {
     /// One caller's `notifications(for:)` stream.
     final class Subscription: @unchecked Sendable {
         let uuid: CBUUID
-        fileprivate let id = UUID()
         fileprivate let continuation: AsyncThrowingStream<Data, Error>.Continuation
 
         fileprivate init(uuid: CBUUID, continuation: AsyncThrowingStream<Data, Error>.Continuation) {
@@ -54,7 +53,7 @@ final class SubscriptionRegistry: @unchecked Sendable {
     /// The connection uses this to decide whether a `setNotifyValue(true)` is needed at all: a
     /// second subscriber to a live characteristic joins without touching the radio.
     func hasSubscribers(for uuid: CBUUID) -> Bool {
-        !(subscriptions[uuid] ?? []).isEmpty
+        subscriptions[uuid]?.isEmpty == false
     }
 
     /// How many streams are live, across every characteristic.
@@ -85,15 +84,16 @@ final class SubscriptionRegistry: @unchecked Sendable {
 
     /// Removes one stream, and reports when it was the last one for its characteristic.
     func remove(_ subscription: Subscription) {
-        guard var forCharacteristic = subscriptions[subscription.uuid] else { return }
-        forCharacteristic.removeAll { $0.id == subscription.id }
+        // Mutated in place: binding the array out first would leave the dictionary holding a
+        // second reference, forcing a copy of the whole subscriber list on every removal.
+        // Identity is the object's — a `Subscription` is a class, so `===` needs no stored id.
+        guard subscriptions[subscription.uuid] != nil else { return }
+        subscriptions[subscription.uuid]?.removeAll { $0 === subscription }
 
-        if forCharacteristic.isEmpty {
+        if subscriptions[subscription.uuid]?.isEmpty == true {
             subscriptions.removeValue(forKey: subscription.uuid)
             awaitingRestore.remove(subscription.uuid)
             onLastSubscriberRemoved?(subscription.uuid)
-        } else {
-            subscriptions[subscription.uuid] = forCharacteristic
         }
     }
 
@@ -106,7 +106,7 @@ final class SubscriptionRegistry: @unchecked Sendable {
 
     /// Ends every stream for one characteristic, with an error.
     ///
-    /// The reconnect case from PLAN.md §7 Q8: the link came back but the characteristic did
+    /// The reconnect case: the link came back but the characteristic did
     /// not. Throwing says so; finishing would be indistinguishable from a quiet sensor.
     func fail(_ uuid: CBUUID, with error: Error) {
         let ending = subscriptions.removeValue(forKey: uuid) ?? []

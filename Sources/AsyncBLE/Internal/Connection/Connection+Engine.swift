@@ -45,11 +45,11 @@ extension Connection {
         }
     }
 
-    /// Re-establishes every subscription that was live when the link dropped (PLAN.md §7 Q2).
+    /// Re-establishes every subscription that was live when the link dropped.
     ///
     /// Runs holding a place taken the moment the link came back, so a read issued in the same
     /// breath cannot overtake it. A characteristic that did not come back fails its own streams
-    /// and leaves the others alone — the connection stays up (PLAN.md §7 Q8).
+    /// and leaves the others alone — the connection stays up.
     func restoreSubscriptions(holding ticket: IOQueue.Ticket) async {
         defer { core.complete(ticket) }
         do {

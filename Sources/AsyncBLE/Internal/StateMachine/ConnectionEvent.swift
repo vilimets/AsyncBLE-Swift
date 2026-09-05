@@ -1,4 +1,4 @@
-// Inputs to the state machine (PLAN.md §4): connectRequested, didConnect, didFailToConnect,
+// Inputs to the state machine: connectRequested, didConnect, didFailToConnect,
 // didDisconnect(error:userInitiated:), connectTimedOut, disconnectRequested, reArmTimerFired,
 // giveUpDeadlineReached, adapterChanged(AdapterState).
 //
@@ -11,7 +11,7 @@ import Foundation
 ///
 /// The set mirrors CoreBluetooth's central-manager callbacks plus the library's own timers, so
 /// the delegate bridge translates one-to-one and never has to decide anything: it builds an
-/// event, feeds it in, and performs whatever effects come back (PLAN.md §3, invariant 3).
+/// event, feeds it in, and performs whatever effects come back.
 ///
 /// Errors ride along as `NSError?` — CoreBluetooth's errors are all `NSError`, and `Error?`
 /// would cost `Equatable`, which is what lets a test assert on a whole event sequence. The
@@ -22,7 +22,7 @@ enum ConnectionEvent: Sendable, Equatable {
     /// Someone asked for a link.
     ///
     /// - Parameter timeout: The deadline for the attempt, or `nil` for a pending connect with
-    ///   no deadline — ``Central/connectWhenAvailable(_:)``.
+    ///   no deadline — ``Central/connectWhenInRange(_:)``.
     case connectRequested(timeout: Duration?)
 
     /// CoreBluetooth reported the link is up.
@@ -35,7 +35,7 @@ enum ConnectionEvent: Sendable, Equatable {
     ///
     /// CoreBluetooth fires one callback for both a peripheral walking out of range and a
     /// disconnect this library asked for; `userInitiated` is the internal flag that tells them
-    /// apart (PLAN.md §2), and it is the whole reason a drop can start a reconnect wait while
+    /// apart, and it is the whole reason a drop can start a reconnect wait while
     /// a deliberate disconnect cannot.
     case didDisconnect(NSError?, userInitiated: Bool)
 

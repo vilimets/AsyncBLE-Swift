@@ -10,7 +10,7 @@ import Testing
 struct CentralLoggingTests {
     @Test("an adapter state change is logged at notice")
     func adapterChange() {
-        let rig = CentralRig(adapterState: .unavailable(.unknown), recording: true)
+        let rig = CentralRig(adapterState: .unavailable(reason: .unknown), recording: true)
         rig.sync { rig.radio.emit(adapterState: .poweredOn) }
 
         #expect(
@@ -20,7 +20,7 @@ struct CentralLoggingTests {
 
     @Test("an unusable adapter is logged at error when it blocks a call")
     func unavailableAdapter() async {
-        let rig = CentralRig(adapterState: .unavailable(.poweredOff), recording: true)
+        let rig = CentralRig(adapterState: .unavailable(reason: .poweredOff), recording: true)
 
         _ = await errorThrown { _ = try await rig.central.connect(rig.peripheralID) }
 

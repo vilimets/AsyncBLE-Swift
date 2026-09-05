@@ -1,4 +1,4 @@
-// The observable form of adapter availability (PLAN.md §7, Q5/Q12).
+// The observable form of adapter availability.
 //
 // Composes over UnavailableReason rather than restating its cases, so the two cannot drift.
 
@@ -17,5 +17,5 @@ public enum AdapterState: Sendable, Equatable {
     ///
     /// - Parameter reason: Which unusable state the adapter is in. The same value that
     ///   ``BluetoothError/bluetoothUnavailable(reason:)`` would carry.
-    case unavailable(UnavailableReason)
+    case unavailable(reason: UnavailableReason)
 }

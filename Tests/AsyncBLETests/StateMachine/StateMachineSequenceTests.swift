@@ -17,7 +17,7 @@ struct StateMachineSequenceTests {
         run.feed(.didConnect)
         #expect(run.state == .connected)
         run.feed(.didDisconnect(cbFailure, userInitiated: false))
-        #expect(run.state == .reconnecting(attempt: 1))
+        #expect(run.state == .reconnecting(arm: 1))
         run.feed(.didConnect)
         #expect(run.state == .connected)
         // Coming back is a rebuild, not a resume: CoreBluetooth invalidated every cached
@@ -43,14 +43,14 @@ struct StateMachineSequenceTests {
     @Test("Bluetooth switched off mid-wait keeps the wait and the deadline")
     func powerCycleDuringWait() {
         var run = MachineRun.reconnecting(policy: .giveUp(after: .seconds(120), reArmEvery: .seconds(30)))
-        #expect(run.state == .reconnecting(attempt: 1))
+        #expect(run.state == .reconnecting(arm: 1))
 
-        run.feed(.adapterChanged(.unavailable(.poweredOff)))
-        #expect(run.state == .reconnecting(attempt: 1))
+        run.feed(.adapterChanged(.unavailable(reason: .poweredOff)))
+        #expect(run.state == .reconnecting(arm: 1))
         #expect(run.lastEffects == [.cancelReArmTimer])
 
         run.feed(.adapterChanged(.poweredOn))
-        #expect(run.state == .reconnecting(attempt: 1))
+        #expect(run.state == .reconnecting(arm: 1))
         #expect(run.lastEffects == [.armConnect, .startReArmTimer(.seconds(30))])
 
         // Q20 in one assertion: nothing in a power cycle ever cancels the give-up deadline, so
@@ -65,28 +65,28 @@ struct StateMachineSequenceTests {
         // imaginary retries would be a lie told in a public API.
         var run = MachineRun.reconnecting(policy: .waitIndefinitely())
         run.feed(
-            .adapterChanged(.unavailable(.poweredOff)),
+            .adapterChanged(.unavailable(reason: .poweredOff)),
             .adapterChanged(.poweredOn),
-            .adapterChanged(.unavailable(.resetting)),
+            .adapterChanged(.unavailable(reason: .resetting)),
             .adapterChanged(.poweredOn)
         )
-        #expect(run.state == .reconnecting(attempt: 1))
+        #expect(run.state == .reconnecting(arm: 1))
     }
 
     @Test("a re-arm cadence is what makes the counter move")
     func cadenceMovesTheCounter() {
         var run = MachineRun.reconnecting(policy: .waitIndefinitely(reArmEvery: .seconds(30)))
         run.feed(.reArmTimerFired, .reArmTimerFired, .reArmTimerFired)
-        #expect(run.state == .reconnecting(attempt: 4))
+        #expect(run.state == .reconnecting(arm: 4))
     }
 
     @Test("a second outage starts counting from one again")
     func counterResetsOnReconnect() {
         var run = MachineRun.reconnecting(policy: .waitIndefinitely(reArmEvery: .seconds(30)))
         run.feed(.reArmTimerFired, .reArmTimerFired)
-        #expect(run.state == .reconnecting(attempt: 3))
+        #expect(run.state == .reconnecting(arm: 3))
         run.feed(.didConnect, .didDisconnect(cbFailure, userInitiated: false))
-        #expect(run.state == .reconnecting(attempt: 1))
+        #expect(run.state == .reconnecting(arm: 1))
     }
 
     @Test("disconnect() while waiting is the end of it, and stays the end of it")
@@ -115,7 +115,7 @@ struct StateMachineSequenceTests {
         #expect(run.lastEffects.contains(.endSubscriptions(reason: .reconnectGaveUp)))
     }
 
-    @Test("connectWhenAvailable pends without a deadline and lands like any other connect")
+    @Test("connectWhenInRange pends without a deadline and lands like any other connect")
     func pendingConnectLands() {
         var run = MachineRun(policy: .waitIndefinitely())
         run.feed(.connectRequested(timeout: nil))

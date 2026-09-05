@@ -22,7 +22,7 @@ struct LinkDropTransitionTests {
     @Test("an indefinite policy re-arms the pending connect and waits")
     func indefiniteWait() {
         let result = drop(policy: .waitIndefinitely())
-        #expect(result.state == .reconnecting(attempt: 1))
+        #expect(result.state == .reconnecting(arm: 1))
         #expect(result.effects == [
             .endPendingOperations(reason: .linkLost),
             .invalidateDiscoveryCache,
@@ -46,7 +46,7 @@ struct LinkDropTransitionTests {
     @Test("a bounded policy starts its give-up deadline")
     func boundedWait() {
         let result = drop(policy: .giveUp(after: .seconds(120)))
-        #expect(result.state == .reconnecting(attempt: 1))
+        #expect(result.state == .reconnecting(arm: 1))
         #expect(result.effects.contains(.startGiveUpDeadline(.seconds(120))))
     }
 
@@ -62,15 +62,15 @@ struct LinkDropTransitionTests {
         ])
     }
 
-    @Test("ReconnectPolicy.none ends the connection instead of waiting")
+    @Test("ReconnectPolicy.never ends the connection instead of waiting")
     func noPolicyEndsIt() {
-        let result = drop(policy: .none)
+        let result = drop(policy: .never)
         #expect(result.state == .disconnected(reason: .linkLost))
         #expect(result.effects == terminalEffects(.linkLost))
     }
 
     @Test("a user-initiated disconnect never consults the policy", arguments: [
-        ReconnectPolicy.none,
+        ReconnectPolicy.never,
         .waitIndefinitely(),
         .giveUp(after: .seconds(60))
     ])
@@ -89,12 +89,12 @@ struct LinkDropTransitionTests {
     func adapterLostWhileConnected() {
         let result = ConnectionStateMachine.transition(
             from: .connected,
-            on: .adapterChanged(.unavailable(.poweredOff)),
+            on: .adapterChanged(.unavailable(reason: .poweredOff)),
             policy: .giveUp(after: .seconds(60))
         )
-        #expect(result.state == .reconnecting(attempt: 1))
+        #expect(result.state == .reconnecting(arm: 1))
         #expect(result.effects == [
-            .endPendingOperations(reason: .bluetoothUnavailable(.poweredOff)),
+            .endPendingOperations(reason: .bluetoothUnavailable(reason: .poweredOff)),
             .invalidateDiscoveryCache,
             .markSubscriptionsForRestore,
             .startGiveUpDeadline(.seconds(60))
@@ -107,11 +107,11 @@ struct LinkDropTransitionTests {
     func adapterLostWithoutPolicy() {
         let result = ConnectionStateMachine.transition(
             from: .connected,
-            on: .adapterChanged(.unavailable(.unauthorized)),
-            policy: .none
+            on: .adapterChanged(.unavailable(reason: .unauthorized)),
+            policy: .never
         )
-        #expect(result.state == .disconnected(reason: .bluetoothUnavailable(.unauthorized)))
-        #expect(result.effects == terminalEffects(.bluetoothUnavailable(.unauthorized)))
+        #expect(result.state == .disconnected(reason: .bluetoothUnavailable(reason: .unauthorized)))
+        #expect(result.effects == terminalEffects(.bluetoothUnavailable(reason: .unauthorized)))
     }
 }
 
@@ -122,7 +122,7 @@ struct ReconnectingTransitionTests {
         on event: ConnectionEvent,
         policy: ReconnectPolicy = .waitIndefinitely()
     ) -> ConnectionStateMachine.Transition {
-        ConnectionStateMachine.transition(from: .reconnecting(attempt: attempt), on: event, policy: policy)
+        ConnectionStateMachine.transition(from: .reconnecting(arm: attempt), on: event, policy: policy)
     }
 
     @Test("the link coming back cancels both timers and restores subscriptions")
@@ -140,7 +140,7 @@ struct ReconnectingTransitionTests {
     @Test("a reported failure re-arms and counts the arm")
     func failureCountsAnArm() {
         let result = transition(attempt: 1, on: .didFailToConnect(cbFailure))
-        #expect(result.state == .reconnecting(attempt: 2))
+        #expect(result.state == .reconnecting(arm: 2))
         #expect(result.effects == [.armConnect])
     }
 
@@ -151,14 +151,14 @@ struct ReconnectingTransitionTests {
             on: .reArmTimerFired,
             policy: .waitIndefinitely(reArmEvery: .seconds(30))
         )
-        #expect(result.state == .reconnecting(attempt: 2))
+        #expect(result.state == .reconnecting(arm: 2))
         #expect(result.effects == [.cancelConnect, .armConnect, .startReArmTimer(.seconds(30))])
     }
 
     @Test("a cadence timer that fires under a policy without one is stale")
     func cadenceTimerWithoutCadence() {
         let result = transition(attempt: 1, on: .reArmTimerFired, policy: .waitIndefinitely())
-        #expect(result.state == .reconnecting(attempt: 1))
+        #expect(result.state == .reconnecting(arm: 1))
         #expect(result.effects.isEmpty)
     }
 
@@ -177,10 +177,10 @@ struct ReconnectingTransitionTests {
         // wall-clock and a long enough power-off does end the wait.
         let result = transition(
             attempt: 2,
-            on: .adapterChanged(.unavailable(.poweredOff)),
+            on: .adapterChanged(.unavailable(reason: .poweredOff)),
             policy: .giveUp(after: .seconds(120), reArmEvery: .seconds(30))
         )
-        #expect(result.state == .reconnecting(attempt: 2))
+        #expect(result.state == .reconnecting(arm: 2))
         #expect(result.effects == [.cancelReArmTimer])
         #expect(!result.effects.contains(.cancelGiveUpDeadline))
     }
@@ -192,7 +192,7 @@ struct ReconnectingTransitionTests {
             on: .adapterChanged(.poweredOn),
             policy: .waitIndefinitely(reArmEvery: .seconds(30))
         )
-        #expect(result.state == .reconnecting(attempt: 2))
+        #expect(result.state == .reconnecting(arm: 2))
         #expect(result.effects == [.armConnect, .startReArmTimer(.seconds(30))])
     }
 
@@ -212,7 +212,7 @@ struct ReconnectingTransitionTests {
     @Test("a connect request during a wait joins the wait already in progress")
     func connectDuringWait() {
         let result = transition(attempt: 2, on: .connectRequested(timeout: .seconds(5)))
-        #expect(result.state == .reconnecting(attempt: 2))
+        #expect(result.state == .reconnecting(arm: 2))
         #expect(result.effects.isEmpty)
     }
 
@@ -222,7 +222,7 @@ struct ReconnectingTransitionTests {
     ])
     func lateDuplicatesIgnored(event: ConnectionEvent) {
         let result = transition(attempt: 2, on: event)
-        #expect(result.state == .reconnecting(attempt: 2))
+        #expect(result.state == .reconnecting(arm: 2))
         #expect(result.effects.isEmpty)
     }
 }

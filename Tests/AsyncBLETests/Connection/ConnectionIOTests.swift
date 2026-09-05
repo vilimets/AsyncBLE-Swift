@@ -189,7 +189,7 @@ struct ConnectionIOTests {
         rig.connect()
         _ = try await rig.connection.read(TestUUID.measurement)
         rig.dropLink()
-        #expect(rig.state == .reconnecting(attempt: 1))
+        #expect(rig.state == .reconnecting(arm: 1))
 
         let read = await errorThrown { try await rig.connection.read(TestUUID.measurement) }
         let write = await errorThrown {

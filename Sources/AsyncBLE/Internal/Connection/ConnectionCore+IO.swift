@@ -3,7 +3,7 @@
 //
 // The `Connection` actor supplies the awaiting. Splitting it this way is what keeps FIFO order
 // honest — a caller's place in line is taken before it suspends, so nothing can be reordered by
-// a hop (PLAN.md §7 Q4, Q11).
+// a hop.
 
 @preconcurrency import CoreBluetooth
 import Foundation
@@ -13,7 +13,7 @@ extension ConnectionCore {
 
     /// Throws unless the link is up right now.
     ///
-    /// This is "I/O fails fast while reconnecting" (PLAN.md §7 Q2). A read or write issued
+    /// This is "I/O fails fast while reconnecting". A read or write issued
     /// during an outage does not queue and wait: a command composed against pre-drop state
     /// should not land on a device that may have rebooted into a different one.
     func ensureConnected() throws {
@@ -161,7 +161,7 @@ extension ConnectionCore {
 
     // MARK: The escape hatch
 
-    /// Runs a closure with the live CoreBluetooth objects (PLAN.md §7 Q6).
+    /// Runs a closure with the live CoreBluetooth objects.
     ///
     /// Called from the `Connection` actor, whose executor *is* the library queue — so "the
     /// closure runs on the library's queue" is true by construction rather than by convention.

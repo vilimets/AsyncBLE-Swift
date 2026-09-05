@@ -1,6 +1,6 @@
 // How long to keep waiting for a dropped link, and whether to re-arm while waiting.
 //
-// Not a backoff curve: under PLAN.md §7 Q14 the OS does the retrying, so a policy answers
+// Not a backoff curve: the OS does the retrying, so a policy answers
 // "is this link still worth waiting for?" — a pure question, so the tests need no clock.
 
 import Foundation
@@ -17,7 +17,10 @@ import Foundation
 /// ``Connection/disconnect()`` never waits, whatever the policy says.
 public struct ReconnectPolicy: Sendable, Equatable {
     /// How long to keep a dropped link's pending connect armed.
-    public enum Persistence: Sendable, Equatable {
+    ///
+    /// Internal: the three factories below are the vocabulary for building a policy, and a
+    /// publicly readable enum nobody can construct is only a second way to say the same thing.
+    enum Persistence: Sendable, Equatable {
         /// Do not wait at all: a dropped link goes straight to `disconnected`.
         case never
 
@@ -31,7 +34,7 @@ public struct ReconnectPolicy: Sendable, Equatable {
     }
 
     /// How long this policy keeps waiting.
-    public let persistence: Persistence
+    let persistence: Persistence
 
     /// How often to cancel and re-arm the pending connect while waiting, if at all.
     ///
@@ -39,7 +42,7 @@ public struct ReconnectPolicy: Sendable, Equatable {
     /// Set an interval only if you are working around a CoreBluetooth connection that gets
     /// wedged and never fulfils a pending connect; cancelling and re-issuing sometimes shakes
     /// one loose. Each re-arm increments the attempt number in
-    /// ``ConnectionState/reconnecting(attempt:)``.
+    /// ``ConnectionState/reconnecting(arm:)``.
     public let reArmInterval: Duration?
 
     private init(persistence: Persistence, reArmInterval: Duration?) {
@@ -51,7 +54,10 @@ public struct ReconnectPolicy: Sendable, Equatable {
     ///
     /// Use this when the app decides for itself when to reconnect — for example only while a
     /// particular screen is on-screen.
-    public static let none = ReconnectPolicy(persistence: .never, reArmInterval: nil)
+    ///
+    /// > Note: Spelled `never` rather than `none` so that it cannot be confused with
+    /// > `Optional.none` in a `ReconnectPolicy?` position.
+    public static let never = ReconnectPolicy(persistence: .never, reArmInterval: nil)
 
     /// Wait indefinitely for the peripheral to come back.
     ///
@@ -69,15 +75,14 @@ public struct ReconnectPolicy: Sendable, Equatable {
     /// Wait for a bounded time, then give up.
     ///
     /// The deadline is wall-clock time from the moment the link dropped, and it keeps running
-    /// while Bluetooth is switched off (PLAN.md §7 Q20) — so a deadline shorter than a user's
-    /// trip through Control Center will end the connection.
+    /// while Bluetooth is switched off. See <doc:Reconnection> for why.
     ///
     /// - Parameters:
-    ///   - deadline: How long to wait before giving up.
+    ///   - limit: How long to wait before giving up.
     ///   - reArmEvery: How often to cancel and re-issue the pending connect. Leave `nil`
     ///     unless working around a wedged connection.
-    /// - Returns: A policy that gives up after `deadline`.
-    public static func giveUp(after deadline: Duration, reArmEvery: Duration? = nil) -> ReconnectPolicy {
-        ReconnectPolicy(persistence: .until(deadline), reArmInterval: reArmEvery)
+    /// - Returns: A policy that gives up after `limit`.
+    public static func giveUp(after limit: Duration, reArmEvery: Duration? = nil) -> ReconnectPolicy {
+        ReconnectPolicy(persistence: .until(limit), reArmInterval: reArmEvery)
     }
 }

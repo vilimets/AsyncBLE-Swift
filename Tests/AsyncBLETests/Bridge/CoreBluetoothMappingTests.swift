@@ -14,11 +14,11 @@ import Testing
 struct AdapterStateMappingTests {
     @Test("every CBManagerState maps, and only poweredOn is success", arguments: [
         (CBManagerState.poweredOn, AdapterState.poweredOn),
-        (.poweredOff, .unavailable(.poweredOff)),
-        (.unauthorized, .unavailable(.unauthorized)),
-        (.unsupported, .unavailable(.unsupported)),
-        (.resetting, .unavailable(.resetting)),
-        (.unknown, .unavailable(.unknown))
+        (.poweredOff, .unavailable(reason: .poweredOff)),
+        (.unauthorized, .unavailable(reason: .unauthorized)),
+        (.unsupported, .unavailable(reason: .unsupported)),
+        (.resetting, .unavailable(reason: .resetting)),
+        (.unknown, .unavailable(reason: .unknown))
     ])
     func mapsEveryState(managerState: CBManagerState, expected: AdapterState) {
         #expect(AdapterState(managerState) == expected)

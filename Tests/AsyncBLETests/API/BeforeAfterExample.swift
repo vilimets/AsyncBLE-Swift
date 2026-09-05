@@ -97,7 +97,7 @@ private func resumeSavedDevice(_ peripheralID: UUID) async throws -> Connection 
     let central = Central(
         configuration: Central.Configuration(reconnectPolicy: .giveUp(after: .seconds(300)))
     )
-    return try await central.connectWhenAvailable(peripheralID)
+    return try await central.connectWhenInRange(peripheralID)
 }
 
 /// Handling an adapter that is off, and a device that never shows up.
@@ -105,7 +105,7 @@ private func connectToKnownDevice(_ peripheralID: UUID) async -> Connection? {
     let central = Central()
     do {
         return try await central.connect(peripheralID, timeout: .seconds(3))
-    } catch BluetoothError.bluetoothUnavailable(.poweredOff) {
+    } catch BluetoothError.bluetoothUnavailable(reason: .poweredOff) {
         print("Turn on Bluetooth to continue.")
     } catch BluetoothError.connectTimeout {
         print("Device did not respond. Is it awake and in range?")
@@ -121,9 +121,9 @@ private func bluetoothBanner(_ central: Central) async {
         switch state {
         case .poweredOn:
             print("hide banner")
-        case .unavailable(.poweredOff):
+        case .unavailable(reason: .poweredOff):
             print("Bluetooth is off")
-        case .unavailable(let reason):
+        case .unavailable(reason: let reason):
             print("Bluetooth unavailable: \(reason)")
         }
     }

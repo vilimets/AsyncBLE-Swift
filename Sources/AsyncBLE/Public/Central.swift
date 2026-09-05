@@ -23,8 +23,8 @@ import Foundation
 /// ```
 ///
 /// No CoreBluetooth type appears in any signature here — `CBUUID` excepted, as the identifier
-/// type (PLAN.md §3). Characteristic positions spell it ``CharacteristicID``; service positions,
-/// such as ``scan(services:allowDuplicates:)``, keep Apple's name.
+/// type. It is spelled ``CharacteristicID`` in characteristic positions and ``ServiceID`` in
+/// service positions, so that neither obliges you to import CoreBluetooth.
 public actor Central {
     /// The tunables this central was created with.
     nonisolated public let configuration: Configuration
@@ -45,7 +45,7 @@ public actor Central {
     /// Logging bound to the `central` category.
     nonisolated var log: Log { logFacility.scoped(.central) }
 
-    /// The links this central is holding open (PLAN.md §7 Q9).
+    /// The links this central is holding open.
     nonisolated let registry = ConnectionRegistry()
 
     /// Runs this actor on the library queue rather than the global concurrency pool.
@@ -69,7 +69,7 @@ public actor Central {
     ///     to a 10-second timeout and indefinite reconnection.
     ///   - logging: What the library logs, at what level, and where. Defaults to OSLog, on, at
     ///     ``LogLevel/notice``.
-    public init(configuration: Configuration = Configuration(), logging: Logging = Logging()) {
+    public init(configuration: Configuration = Configuration(), logging: LogConfiguration = LogConfiguration()) {
         let library = LibraryQueue()
         let seam = LiveCentral(queue: library.dispatchQueue, showPowerAlert: configuration.showPowerAlert)
         self.init(
@@ -81,8 +81,8 @@ public actor Central {
         )
     }
 
-    /// Creates a central over an arbitrary seam. Internal: this is the test injection point,
-    /// not the public mock-injection API, which stays on the Planned list (PLAN.md §7 Q7).
+    /// Creates a central over an arbitrary seam. Internal: this is the library's own test
+    /// injection point, not a supported way to substitute a mock from outside.
     init(
         configuration: Configuration,
         seam: CentralSeam,
@@ -151,7 +151,7 @@ public actor Central {
     /// - Throws: ``BluetoothError/bluetoothUnavailable(reason:)`` if the adapter is not
     ///   powered on.
     public func scan(
-        services: [CBUUID],
+        services: [ServiceID],
         allowDuplicates: Bool = false
     ) async throws -> AsyncStream<Discovery> {
         try await scan(ScanOptions(services: services, allowDuplicates: allowDuplicates))
@@ -161,13 +161,13 @@ public actor Central {
     ///
     /// Returns only once the link is up. If it does not come up within the timeout, the pending
     /// CoreBluetooth request is cancelled and ``BluetoothError/connectTimeout`` is thrown —
-    /// CoreBluetooth itself would have waited forever. Use ``connectWhenAvailable(_:)`` when
+    /// CoreBluetooth itself would have waited forever. Use ``connectWhenInRange(_:)`` when
     /// waiting forever is what you actually want.
     ///
     /// Concurrent calls for the same peripheral coalesce onto a single attempt and all resume
     /// with the same ``Connection``; a call for an already-connected peripheral returns the
     /// live connection. Cancelling one caller's task detaches that caller only — the attempt
-    /// continues while any other caller is still waiting (PLAN.md §7 Q10).
+    /// continues while any other caller is still waiting.
     ///
     /// > Note: A caller that starts the attempt sets its deadline, and that deadline is what
     /// > withdraws the CoreBluetooth request. A caller that coalesces onto an attempt already
@@ -217,14 +217,14 @@ public actor Central {
     /// - Throws: ``BluetoothError/connectionFailed(underlying:)`` if CoreBluetooth rejects the
     ///   request, or ``BluetoothError/bluetoothUnavailable(reason:)`` if the adapter is not
     ///   powered on.
-    public func connectWhenAvailable(_ peripheralID: UUID) async throws -> Connection {
+    public func connectWhenInRange(_ peripheralID: UUID) async throws -> Connection {
         try await establish(peripheralID, timeout: nil)
     }
 
     /// Every connection this central is currently holding.
     ///
     /// A link lives until something explicitly closes it — dropping your last reference does
-    /// not (PLAN.md §7 Q9). The cost of that rule is that a link nobody closes stays open, and
+    /// not. The cost of that rule is that a link nobody closes stays open, and
     /// this is how you find one: an inventory of what the radio is actually doing.
     ///
     /// Includes connections that are `connecting` or `reconnecting`, not only live links,
@@ -260,8 +260,11 @@ public actor Central {
         if !open.isEmpty {
             log.notice("disconnecting all \(open.count) connection(s)")
         }
+        // Straight to the engine rather than `await connection.disconnect()`: that method only
+        // calls this, and `Central` and every `Connection` already share the library queue, so
+        // the awaits bought a suspension point each and no ordering.
         for connection in open {
-            await connection.disconnect()
+            connection.core.requestDisconnect()
         }
     }
 }

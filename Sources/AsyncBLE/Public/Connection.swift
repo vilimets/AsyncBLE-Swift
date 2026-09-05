@@ -23,7 +23,7 @@ import Foundation
 /// so held references stay valid and subscriptions are restored when the link returns. It ends
 /// only when something explicitly ends it: ``disconnect()``, or the reconnect policy giving up.
 /// Dropping your last reference does **not** close the link; the owning ``Central`` keeps it
-/// until then (PLAN.md §7 Q9).
+/// until then.
 ///
 /// ## Sharing
 ///
@@ -37,7 +37,7 @@ import Foundation
 /// runs them through a single queue. That is close to free: ATT allows only one outstanding
 /// request per connection anyway, so the queue mostly formalizes what the wire already does.
 /// Without it, actor reentrancy would let concurrent callers interleave at suspension points
-/// and reorder packets (PLAN.md §7 Q4, Q11).
+/// and reorder packets.
 public actor Connection {
     /// Whether a write waits for the peripheral to acknowledge it.
     public enum WriteMode: Sendable, Equatable {
@@ -71,7 +71,7 @@ public actor Connection {
     ///
     /// An implementation detail that has to be public because `Actor` says so. It is what makes
     /// this actor and CoreBluetooth's delegate callbacks mutually exclusive, which in turn is
-    /// what makes ``withRaw(_:)`` safe (PLAN.md §7 Q6).
+    /// what makes ``withRaw(_:)`` safe.
     nonisolated public var unownedExecutor: UnownedSerialExecutor {
         library.unownedExecutor
     }

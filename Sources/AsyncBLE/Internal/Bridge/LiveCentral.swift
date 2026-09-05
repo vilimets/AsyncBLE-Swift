@@ -120,7 +120,7 @@ extension LiveCentral: CBCentralManagerDelegate {
     // Only the classic callback is implemented. iOS 17 added a variant carrying a timestamp and
     // an `isReconnecting` flag, and calls this one whenever that variant is absent — which is
     // what keeps the iOS 16 floor honest. The extra information is for AutoReconnect, which
-    // belongs to the background milestone on the Planned list.
+    // belongs to the background milestone.
     func centralManager(
         _ central: CBCentralManager,
         didDisconnectPeripheral peripheral: CBPeripheral,
@@ -138,12 +138,12 @@ extension AdapterState {
     init(_ managerState: CBManagerState) {
         switch managerState {
         case .poweredOn: self = .poweredOn
-        case .poweredOff: self = .unavailable(.poweredOff)
-        case .unauthorized: self = .unavailable(.unauthorized)
-        case .unsupported: self = .unavailable(.unsupported)
-        case .resetting: self = .unavailable(.resetting)
-        case .unknown: self = .unavailable(.unknown)
-        @unknown default: self = .unavailable(.unknown)
+        case .poweredOff: self = .unavailable(reason: .poweredOff)
+        case .unauthorized: self = .unavailable(reason: .unauthorized)
+        case .unsupported: self = .unavailable(reason: .unsupported)
+        case .resetting: self = .unavailable(reason: .resetting)
+        case .unknown: self = .unavailable(reason: .unknown)
+        @unknown default: self = .unavailable(reason: .unknown)
         }
     }
 }
@@ -152,8 +152,7 @@ extension Int {
     /// Reads CoreBluetooth's RSSI number, rejecting its "no reading" sentinel.
     ///
     /// CoreBluetooth reports `127` when it has no signal-strength reading. Passed through, that
-    /// would surface as an absurdly strong signal — +127 dBm — so it becomes `nil` instead
-    /// (PLAN.md §5, `Discovery.rssi`).
+    /// would surface as an absurdly strong signal — +127 dBm — so it becomes `nil` instead.
     init?(rssiReading reading: NSNumber) {
         let value = reading.intValue
         guard value != 127 else { return nil }

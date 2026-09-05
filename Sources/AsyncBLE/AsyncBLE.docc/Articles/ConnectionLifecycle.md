@@ -7,7 +7,29 @@ The states a connection moves through, what drives each transition, and how to o
 Every connection in AsyncBLE is in exactly one of four states, and every change of state comes
 from a single pure state machine. There is no second source of truth to fall out of sync with.
 
-![Connection state machine with four states. Disconnected is the initial and terminal state. Calling connect moves to Connecting, which is guarded by a timeout. When discovery finishes, Connecting moves to Connected, where input and output are available. A link drop moves Connected to Reconnecting, where a pending connect stays armed. The peripheral returning moves it back to Connected; the policy's deadline expiring returns it to Disconnected.](connection-state-machine)
+### Every transition
+
+`disconnect()` ends a connection from any state, and `disconnected` is terminal — a late
+CoreBluetooth callback lands there and is dropped rather than resurrecting a finished machine.
+
+| From | What happened | To |
+|---|---|---|
+| `disconnected` | `connect()` | `connecting` |
+| `connecting` | link came up | `connected` |
+| `connecting` | timeout expired | `disconnected(.connectTimeout)` |
+| `connecting` | CoreBluetooth refused it | `disconnected(.connectionFailed)` |
+| `connecting` | adapter became unusable | `disconnected(.bluetoothUnavailable)` |
+| `connected` | link dropped, policy waits | `reconnecting(arm: 1)` |
+| `connected` | link dropped, policy is `.never` | `disconnected(.linkLost)` |
+| `connected` | adapter became unusable, policy waits | `reconnecting(arm: 1)` |
+| `reconnecting` | peripheral returned | `connected` |
+| `reconnecting` | OS handed the request back | `reconnecting(arm: n + 1)` |
+| `reconnecting` | re-arm cadence fired | `reconnecting(arm: n + 1)` |
+| `reconnecting` | give-up deadline expired | `disconnected(.reconnectGaveUp)` |
+
+Note what is missing: `connecting` never consults the reconnect policy. The policy governs
+links that dropped, not links that never came up — an attempt that fails is an answer to the
+caller who is awaiting it, not the start of a wait.
 
 ### The states
 

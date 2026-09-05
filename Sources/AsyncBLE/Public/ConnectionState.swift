@@ -1,6 +1,6 @@
-// The four observable states: disconnected(reason:), connecting, connected, reconnecting(attempt:).
+// The four observable states: disconnected(reason:), connecting, connected, reconnecting(arm:).
 //
-// Mirrors the state machine in PLAN.md §4; the pure machine in Internal/StateMachine owns transitions.
+// Mirrors the state machine; the pure machine in Internal/StateMachine owns transitions.
 
 /// The state of a ``Connection``.
 ///
@@ -21,17 +21,18 @@ public enum ConnectionState: Sendable, Equatable {
 
     /// The link dropped and the reconnect policy is still waiting for it to come back.
     ///
-    /// - Parameter attempt: The 1-based number of the current arm of the pending connect.
+    /// - Parameter arm: The 1-based number of the current arm of the pending connect.
+    ///   Not a retry count — see below.
     ///
     /// The OS holds a pending connect and fulfils it when the peripheral reappears, so there is
     /// usually exactly *one* attempt no matter how long the wait: expect this to read `1` for
     /// the whole outage unless you set ``ReconnectPolicy/reArmInterval``, which increments it
     /// on every re-arm. CoreBluetooth reporting an outright connect failure also increments it.
     ///
-    /// A connection stays here while Bluetooth is switched off. Note that a bounded policy's
-    /// deadline keeps running during that time (PLAN.md §7 Q20), so a long power-off can end
+    /// A connection stays here while Bluetooth is switched off. A bounded policy's deadline
+    /// keeps running during that time — see <doc:Reconnection> — so a long power-off can end
     /// the wait in ``DisconnectReason/reconnectGaveUp``.
-    case reconnecting(attempt: Int)
+    case reconnecting(arm: Int)
 }
 
 extension ConnectionState {

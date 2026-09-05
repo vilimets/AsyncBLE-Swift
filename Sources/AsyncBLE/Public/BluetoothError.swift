@@ -1,4 +1,4 @@
-// The single public error type (PLAN.md §3).
+// The single public error type.
 //
 // `CBUUID` is the one CoreBluetooth type allowed in the public API: a value type with no
 // behavior, used as an identifier. In characteristic positions it is spelled
@@ -36,10 +36,15 @@ public enum UnavailableReason: Sendable, Equatable {
     case unknown
 }
 
-/// Every error this library throws.
+/// Every error thrown by scanning, connecting, and characteristic I/O.
 ///
-/// One error type, so a single `catch` covers the API. Underlying CoreBluetooth errors are
-/// carried rather than swallowed — inspect them when you need the vendor-specific detail.
+/// One error type, so a single `catch` covers the connection API. Underlying CoreBluetooth
+/// errors are carried rather than swallowed — inspect them when you need the vendor-specific
+/// detail.
+///
+/// > Note: A ``CharacteristicDecodable`` conformance called directly throws whatever it throws
+/// > — ``CharacteristicDecodingError`` for the built-in ones. Reached through the typed API it
+/// > arrives here as ``decodingFailed(characteristic:underlying:)`` like everything else.
 public enum BluetoothError: Error, Sendable {
     /// The Bluetooth adapter is unusable.
     ///
@@ -50,7 +55,7 @@ public enum BluetoothError: Error, Sendable {
     ///
     /// The pending CoreBluetooth connect request is cancelled before this is thrown, so no
     /// late connection can arrive afterwards. Only ``Central/connect(_:timeout:)-(UUID,_)`` throws this;
-    /// ``Central/connectWhenAvailable(_:)`` has no deadline by design.
+    /// ``Central/connectWhenInRange(_:)`` has no deadline by design.
     case connectTimeout
 
     /// CoreBluetooth refused or failed the connect attempt.
@@ -71,8 +76,8 @@ public enum BluetoothError: Error, Sendable {
     /// firmware mode, are the usual causes.
     ///
     /// ``CharacteristicID`` is `CBUUID` — the single CoreBluetooth type permitted in this
-    /// library's public API (PLAN.md §3). It is an immutable value type with no behavior, and
-    /// wrapping it would add friction without adding safety; the alias only renames it.
+    /// library's public API. It is an immutable value type with no behavior, and wrapping it
+    /// would add friction without adding safety; the alias only renames it.
     case characteristicNotFound(CharacteristicID)
 
     /// The characteristic does not support the requested operation.

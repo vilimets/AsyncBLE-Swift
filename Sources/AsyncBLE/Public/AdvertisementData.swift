@@ -28,20 +28,20 @@ public struct AdvertisementData: Sendable, Equatable {
     public let manufacturerData: Data?
 
     /// Per-service advertised data, keyed by service UUID.
-    public let serviceData: [CBUUID: Data]
+    public let serviceData: [ServiceID: Data]
 
     /// Service UUIDs advertised in the packet.
-    public let serviceUUIDs: [CBUUID]
+    public let serviceUUIDs: [ServiceID]
 
     /// Service UUIDs that did not fit in the advertising packet and were placed in the
     /// overflow area.
     ///
     /// These are only visible to an iOS device scanning for those specific UUIDs, and only
     /// when the advertiser is also an Apple device.
-    public let overflowServiceUUIDs: [CBUUID]
+    public let overflowServiceUUIDs: [ServiceID]
 
     /// Service UUIDs the peripheral is soliciting — services it wants a central to provide.
-    public let solicitedServiceUUIDs: [CBUUID]
+    public let solicitedServiceUUIDs: [ServiceID]
 
     /// The transmit power level in dBm, if advertised.
     ///
@@ -71,10 +71,10 @@ public struct AdvertisementData: Sendable, Equatable {
     public init(
         localName: String? = nil,
         manufacturerData: Data? = nil,
-        serviceData: [CBUUID: Data] = [:],
-        serviceUUIDs: [CBUUID] = [],
-        overflowServiceUUIDs: [CBUUID] = [],
-        solicitedServiceUUIDs: [CBUUID] = [],
+        serviceData: [ServiceID: Data] = [:],
+        serviceUUIDs: [ServiceID] = [],
+        overflowServiceUUIDs: [ServiceID] = [],
+        solicitedServiceUUIDs: [ServiceID] = [],
         txPowerLevel: Int? = nil,
         isConnectable: Bool? = nil
     ) {

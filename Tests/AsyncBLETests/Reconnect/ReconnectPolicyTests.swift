@@ -18,8 +18,8 @@ import Testing
 struct ReconnectPolicyValueTests {
     @Test("the factories say what they mean")
     func factories() {
-        #expect(ReconnectPolicy.none.persistence == .never)
-        #expect(ReconnectPolicy.none.reArmInterval == nil)
+        #expect(ReconnectPolicy.never.persistence == .never)
+        #expect(ReconnectPolicy.never.reArmInterval == nil)
         #expect(ReconnectPolicy.waitIndefinitely().persistence == .indefinitely)
         #expect(ReconnectPolicy.giveUp(after: .seconds(120)).persistence == .until(.seconds(120)))
     }
@@ -39,7 +39,7 @@ struct ReconnectPolicyValueTests {
         #expect(ReconnectPolicy.waitIndefinitely() == .waitIndefinitely())
         #expect(ReconnectPolicy.giveUp(after: .seconds(60)) != .giveUp(after: .seconds(61)))
         #expect(ReconnectPolicy.waitIndefinitely() != .waitIndefinitely(reArmEvery: .seconds(30)))
-        #expect(ReconnectPolicy.none != .waitIndefinitely())
+        #expect(ReconnectPolicy.never != .waitIndefinitely())
     }
 
     @Test("the default configuration waits indefinitely")
@@ -68,7 +68,7 @@ struct ReconnectBehaviorTests {
 
     @Test("a pending connect has no deadline to run out")
     func pendingConnectNeverTimesOut() async {
-        // connectWhenAvailable(_:): nobody is awaiting it, so it waits (PLAN.md §7 Q17).
+        // connectWhenInRange(_:): nobody is awaiting it, so it waits (PLAN.md §7 Q17).
         let rig = ConnectionRig()
         rig.sync { rig.core.requestConnect(timeout: nil) }
 
@@ -89,7 +89,7 @@ struct ReconnectBehaviorTests {
 
         rig.sync { rig.scheduler.advance(by: .seconds(600)) }
 
-        #expect(rig.state == .reconnecting(attempt: 1))
+        #expect(rig.state == .reconnecting(arm: 1))
         #expect(rig.sync { rig.central.calls }.isEmpty)
     }
 
@@ -104,7 +104,7 @@ struct ReconnectBehaviorTests {
 
         rig.sync { rig.scheduler.advance(by: .seconds(90)) }
 
-        #expect(rig.state == .reconnecting(attempt: 4))
+        #expect(rig.state == .reconnecting(arm: 4))
         #expect(rig.sync { rig.central.calls } == [
             .cancelConnection(rig.peripheral.identifier), .connect(rig.peripheral.identifier),
             .cancelConnection(rig.peripheral.identifier), .connect(rig.peripheral.identifier),
@@ -119,18 +119,18 @@ struct ReconnectBehaviorTests {
         let rig = ConnectionRig(policy: .waitIndefinitely(reArmEvery: .seconds(30)))
         rig.connect()
         rig.dropLink()
-        rig.setAdapter(.unavailable(.poweredOff))
+        rig.setAdapter(.unavailable(reason: .poweredOff))
         rig.sync { rig.central.clearCalls() }
 
         rig.sync { rig.scheduler.advance(by: .seconds(90)) }
 
         #expect(rig.sync { rig.central.calls }.isEmpty)
-        #expect(rig.state == .reconnecting(attempt: 1))
+        #expect(rig.state == .reconnecting(arm: 1))
     }
 
-    @Test("ReconnectPolicy.none ends the connection on the first drop")
+    @Test("ReconnectPolicy.never ends the connection on the first drop")
     func noPolicyDoesNotWait() async {
-        let rig = ConnectionRig(policy: .none)
+        let rig = ConnectionRig(policy: .never)
         rig.connect()
 
         rig.dropLink()
@@ -179,7 +179,7 @@ struct ReconnectBehaviorTests {
         rig.sync { rig.scheduler.advance(by: .seconds(119)) }
 
         // The first outage's 119 seconds do not count against the second's budget.
-        #expect(rig.state == .reconnecting(attempt: 1))
+        #expect(rig.state == .reconnecting(arm: 1))
         rig.sync { rig.scheduler.advance(by: .seconds(1)) }
         #expect(rig.state == .disconnected(reason: .reconnectGaveUp))
     }

@@ -1,6 +1,6 @@
 // The escape hatch: scoped access to `CBPeripheral` / `CBCentralManager`.
 //
-// Scoped rather than a property bag (PLAN.md §7 Q6): the closure runs on the library's queue,
+// Scoped rather than a property bag: the closure runs on the library's queue,
 // which is the only version where "this is safe to read" is actually true.
 
 @preconcurrency import CoreBluetooth
@@ -27,7 +27,7 @@ extension Connection {
     ///   L2CAP channel opening all deliver their results to the peripheral's delegate — which
     ///   is this library's bridge, not you. The call will appear to succeed and the result will
     ///   be dropped. Those capabilities need real API support; open an issue and say what you
-    ///   need (PLAN.md §2 corrects an earlier claim that this escape hatch covered them).
+    ///   need.
     /// - **Mutating connection state is undefined behavior.** `cancelPeripheralConnection`,
     ///   your own `connect`, or reassigning `delegate` puts the state machine and the radio out
     ///   of sync. Use ``Connection/disconnect()`` instead.

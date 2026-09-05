@@ -5,7 +5,7 @@
 
 import Foundation
 
-/// The single source of truth for a connection's state (PLAN.md §4).
+/// The single source of truth for a connection's state.
 ///
 /// Pure: it owns a `ConnectionState`, takes a ``ConnectionEvent``, and returns the
 /// ``ConnectionEffect``s somebody else should perform. No clock, no radio, no I/O — which is
@@ -69,8 +69,8 @@ struct ConnectionStateMachine {
             return fromConnecting(on: event)
         case .connected:
             return fromConnected(on: event, policy: policy)
-        case .reconnecting(let attempt):
-            return fromReconnecting(attempt: attempt, on: event, policy: policy)
+        case .reconnecting(let arm):
+            return fromReconnecting(arm: arm, on: event, policy: policy)
         }
     }
 }
@@ -81,7 +81,7 @@ extension ConnectionStateMachine {
     /// `disconnected` is terminal for everything except a fresh connect request.
     ///
     /// A connection that has reached `disconnected` is finished: the owning central releases
-    /// it (PLAN.md §7 Q9) and any late CoreBluetooth callback — the `didDisconnect` that
+    /// it and any late CoreBluetooth callback — the `didDisconnect` that
     /// arrives after the `cancelPeripheralConnection` we asked for, most often — lands here
     /// and is dropped rather than resurrecting a dead machine.
     private static func fromDisconnected(
@@ -110,25 +110,25 @@ extension ConnectionStateMachine {
             return terminate(.connectTimeout, cancelling: [])
 
         case .didFailToConnect:
-            // PLAN.md §4 lists no effect for this row; the armed timeout still has to go, or it
+            // The state table lists no effect for this row; the armed timeout still has to go, or it
             // fires into a machine that has already moved on.
-            return terminate(.connectFailed, cancelling: [.cancelConnectTimeout])
+            return terminate(.connectionFailed, cancelling: [.cancelConnectTimeout])
 
         case .didDisconnect(_, userInitiated: false):
             // CoreBluetooth occasionally reports a failed attempt this way instead.
-            return terminate(.connectFailed, cancelling: [.cancelConnectTimeout])
+            return terminate(.connectionFailed, cancelling: [.cancelConnectTimeout])
 
         case .didDisconnect(_, userInitiated: true), .disconnectRequested:
             return terminate(.userInitiated, cancelling: [.cancelConnectTimeout])
 
-        case .adapterChanged(.unavailable(let reason)):
-            // Not in the §4 table. An attempt cannot survive the radio going away, and the
+        case .adapterChanged(.unavailable(reason: let reason)):
+            // Not in the transition table. An attempt cannot survive the radio going away, and the
             // caller is awaiting an answer — so this fails rather than becoming a wait.
-            return terminate(.bluetoothUnavailable(reason), cancelling: [.cancelConnectTimeout])
+            return terminate(.bluetoothUnavailable(reason: reason), cancelling: [.cancelConnectTimeout])
 
         case .connectRequested, .adapterChanged(.poweredOn), .reArmTimerFired, .giveUpDeadlineReached:
-            // A second connect coalesces onto this attempt (PLAN.md §7 Q7.1); each caller's own
-            // deadline is the central's business, not the machine's (§7 Q10). The rest are
+            // A second connect coalesces onto this attempt; each caller's own
+            // deadline is the central's business, not the machine's. The rest are
             // stale timers from a previous state.
             return Transition(state: .connecting, effects: [])
         }
@@ -146,11 +146,11 @@ extension ConnectionStateMachine {
             // A link the library did not close: the one case the policy governs.
             return dropped(reason: .linkLost, armImmediately: true, policy: policy)
 
-        case .adapterChanged(.unavailable(let reason)):
+        case .adapterChanged(.unavailable(reason: let reason)):
             // The radio, not the peripheral, went away — so the same wait applies, but there is
             // nothing to arm until it comes back. Apple invalidates every peripheral object at
             // this point and does not reliably report a disconnect, hence handling it here.
-            return dropped(reason: .bluetoothUnavailable(reason), armImmediately: false, policy: policy)
+            return dropped(reason: .bluetoothUnavailable(reason: reason), armImmediately: false, policy: policy)
 
         case .connectRequested, .didConnect, .didFailToConnect, .connectTimedOut,
              .reArmTimerFired, .giveUpDeadlineReached, .adapterChanged(.poweredOn):
@@ -176,7 +176,7 @@ extension ConnectionStateMachine {
             return terminate(reason, cancelling: [])
         }
         // Queued I/O is failed before anything is re-armed: a write composed against the old
-        // link must never land on the new one (PLAN.md §4, edge cases).
+        // link must never land on the new one.
         var effects: [ConnectionEffect] = [
             .endPendingOperations(reason: reason),
             .invalidateDiscoveryCache,
@@ -191,16 +191,16 @@ extension ConnectionStateMachine {
                 effects.append(.startReArmTimer(interval))
             }
         }
-        return Transition(state: .reconnecting(attempt: 1), effects: effects)
+        return Transition(state: .reconnecting(arm: 1), effects: effects)
     }
 }
 
 extension ConnectionStateMachine {
-    /// Waiting for a dropped link. `attempt` counts arms of the pending connect, not retries:
+    /// Waiting for a dropped link. `arm` counts arms of the pending connect, not retries:
     /// with no re-arm cadence it honestly reads `1` for the whole outage, because there
-    /// genuinely is one request in flight and the OS is holding it (PLAN.md §7 Q16).
+    /// genuinely is one request in flight and the OS is holding it.
     private static func fromReconnecting(
-        attempt: Int,
+        arm: Int,
         on event: ConnectionEvent,
         policy: ReconnectPolicy
     ) -> Transition {
@@ -216,14 +216,14 @@ extension ConnectionStateMachine {
 
         case .didFailToConnect:
             // The OS gave the pending request back; re-issue it and count the arm.
-            return Transition(state: .reconnecting(attempt: attempt + 1), effects: [.armConnect])
+            return Transition(state: .reconnecting(arm: arm + 1), effects: [.armConnect])
 
         case .reArmTimerFired:
             guard let interval = policy.reArmInterval else {
-                return Transition(state: .reconnecting(attempt: attempt), effects: [])
+                return Transition(state: .reconnecting(arm: arm), effects: [])
             }
             return Transition(
-                state: .reconnecting(attempt: attempt + 1),
+                state: .reconnecting(arm: arm + 1),
                 effects: [.cancelConnect, .armConnect, .startReArmTimer(interval)]
             )
 
@@ -232,15 +232,15 @@ extension ConnectionStateMachine {
 
         case .adapterChanged(.unavailable):
             // The pending connect is void while the radio is off and the deadline keeps
-            // burning (PLAN.md §7 Q20) — but a re-arm against a dead radio is pure waste.
-            return Transition(state: .reconnecting(attempt: attempt), effects: [.cancelReArmTimer])
+            // burning — but a re-arm against a dead radio is pure waste.
+            return Transition(state: .reconnecting(arm: arm), effects: [.cancelReArmTimer])
 
         case .adapterChanged(.poweredOn):
             var effects: [ConnectionEffect] = [.armConnect]
             if let interval = policy.reArmInterval {
                 effects.append(.startReArmTimer(interval))
             }
-            return Transition(state: .reconnecting(attempt: attempt), effects: effects)
+            return Transition(state: .reconnecting(arm: arm), effects: effects)
 
         case .didDisconnect(_, userInitiated: true), .disconnectRequested:
             return terminate(.userInitiated, cancelling: [.cancelGiveUpDeadline, .cancelReArmTimer])
@@ -248,7 +248,7 @@ extension ConnectionStateMachine {
         case .didDisconnect(_, userInitiated: false), .connectRequested, .connectTimedOut:
             // A late duplicate drop, or a connect request that has just found the wait it was
             // about to start. Both are already what this state is doing.
-            return Transition(state: .reconnecting(attempt: attempt), effects: [])
+            return Transition(state: .reconnecting(arm: arm), effects: [])
         }
     }
 

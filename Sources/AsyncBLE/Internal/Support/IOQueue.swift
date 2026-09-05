@@ -1,4 +1,4 @@
-// The per-connection FIFO that all reads and writes pass through (PLAN.md §7 Q4, Q11).
+// The per-connection FIFO that all reads and writes pass through.
 //
 // Actor isolation alone does not order anything: `write` suspends for discovery and for
 // `canSendWriteWithoutResponse`, and reentrancy at those points lets concurrent callers
@@ -13,7 +13,7 @@
 // exact bug this type exists to prevent. The awaiting is done by the `Connection` actor, whose
 // executor is this same queue.
 //
-// (Named IOQueue rather than the OperationQueue of PLAN.md §5's file list, because shadowing
+// (Named IOQueue rather than an OperationQueue, because shadowing
 // Foundation's OperationQueue inside the module would be a trap for a later reader.)
 
 import Foundation
@@ -85,7 +85,7 @@ final class IOQueue: @unchecked Sendable {
 
     /// Fails everything in line, in line order, and tells the caller what is running.
     ///
-    /// The order matters: PLAN.md §4 requires queued writes to fail *before* a reconnect is
+    /// The order matters: queued writes must fail *before* a reconnect is
     /// armed, so a command composed against the old link cannot land on the new one.
     ///
     /// - Parameter error: What each waiting caller is resumed with.

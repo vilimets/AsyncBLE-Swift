@@ -48,7 +48,7 @@ Waiting is visible, not hidden. A dropped link moves the connection into the rec
 and the connection stays there until the peripheral returns or the policy gives up. When it does
 give up, the connection lands in disconnected with a reason saying so.
 
-The attempt number in that state counts *arms* of the pending connect, not retries. With no
+The arm number in that state counts *arms* of the pending connect, not retries. With no
 re-arm interval set there is exactly one arm, so it will read `1` for the whole outage — because
 there genuinely is one connect request in flight the entire time. That is the honest number; a
 UI that wants to show progress should show elapsed time instead.

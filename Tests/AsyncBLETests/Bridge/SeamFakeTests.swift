@@ -153,20 +153,20 @@ struct SeamFakeTests {
 
     @Test("adapter changes reach the delegate with the new state already readable")
     func adapterChangesAreReported() {
-        let central = FakeCentral(adapterState: .unavailable(.unknown))
+        let central = FakeCentral(adapterState: .unavailable(reason: .unknown))
         let recorder = SeamRecorder()
         central.seamDelegate = recorder
 
         central.emit(adapterState: .poweredOn)
-        central.emit(adapterState: .unavailable(.poweredOff))
+        central.emit(adapterState: .unavailable(reason: .poweredOff))
 
-        #expect(recorder.events == [.adapterState(.poweredOn), .adapterState(.unavailable(.poweredOff))])
-        #expect(central.adapterState == .unavailable(.poweredOff))
+        #expect(recorder.events == [.adapterState(.poweredOn), .adapterState(.unavailable(reason: .poweredOff))])
+        #expect(central.adapterState == .unavailable(reason: .poweredOff))
     }
 
     @Test("a peripheral the system already knows can be retrieved without a scan")
     func retrieveKnownPeripheral() {
-        // The path connectWhenAvailable(_:) takes at launch (PLAN.md §7 Q17).
+        // The path connectWhenInRange(_:) takes at launch (PLAN.md §7 Q17).
         let central = FakeCentral()
         let peripheral = makePeripheral()
         central.knownPeripherals[peripheral.identifier] = peripheral

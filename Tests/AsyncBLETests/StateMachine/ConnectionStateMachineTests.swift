@@ -29,7 +29,7 @@ struct DisconnectedTransitionTests {
 
     @Test("connectRequested without a timeout arms only the radio")
     func pendingConnectArmsNoDeadline() {
-        // connectWhenAvailable(_:): the OS holds the request, so there is no timer to run
+        // connectWhenInRange(_:): the OS holds the request, so there is no timer to run
         // against it (PLAN.md §7 Q17).
         let transition = ConnectionStateMachine.transition(
             from: .disconnected(reason: nil),
@@ -49,7 +49,7 @@ struct DisconnectedTransitionTests {
         .reArmTimerFired,
         .giveUpDeadlineReached,
         .adapterChanged(.poweredOn),
-        .adapterChanged(.unavailable(.poweredOff))
+        .adapterChanged(.unavailable(reason: .poweredOff))
     ])
     func disconnectedIsTerminal(event: ConnectionEvent) {
         // The late didDisconnect that follows our own cancelPeripheralConnection lands here.
@@ -88,15 +88,15 @@ struct ConnectingTransitionTests {
     @Test("didFailToConnect cancels the deadline it would otherwise outlive")
     func connectFails() {
         let result = transition(on: .didFailToConnect(cbFailure))
-        #expect(result.state == .disconnected(reason: .connectFailed))
-        #expect(result.effects == [.cancelConnectTimeout] + terminalEffects(.connectFailed))
+        #expect(result.state == .disconnected(reason: .connectionFailed))
+        #expect(result.effects == [.cancelConnectTimeout] + terminalEffects(.connectionFailed))
     }
 
     @Test("a disconnect reported during the attempt reads as a failed attempt")
     func disconnectDuringAttempt() {
         let result = transition(on: .didDisconnect(cbFailure, userInitiated: false))
-        #expect(result.state == .disconnected(reason: .connectFailed))
-        #expect(result.effects == [.cancelConnectTimeout] + terminalEffects(.connectFailed))
+        #expect(result.state == .disconnected(reason: .connectionFailed))
+        #expect(result.effects == [.cancelConnectTimeout] + terminalEffects(.connectionFailed))
     }
 
     @Test("disconnect() during the attempt withdraws it")
@@ -110,9 +110,9 @@ struct ConnectingTransitionTests {
     func adapterLostDuringAttempt() {
         // Not in the §4 table. A caller is awaiting an answer, and the reconnect policy governs
         // links that dropped — not links that never came up.
-        let result = transition(on: .adapterChanged(.unavailable(.poweredOff)))
-        #expect(result.state == .disconnected(reason: .bluetoothUnavailable(.poweredOff)))
-        #expect(result.effects == [.cancelConnectTimeout] + terminalEffects(.bluetoothUnavailable(.poweredOff)))
+        let result = transition(on: .adapterChanged(.unavailable(reason: .poweredOff)))
+        #expect(result.state == .disconnected(reason: .bluetoothUnavailable(reason: .poweredOff)))
+        #expect(result.effects == [.cancelConnectTimeout] + terminalEffects(.bluetoothUnavailable(reason: .poweredOff)))
     }
 
     @Test("a second connect coalesces onto the attempt in flight")

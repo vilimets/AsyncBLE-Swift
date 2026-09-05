@@ -1,9 +1,9 @@
 // CBCentralManagerDelegate → state machine events / async continuations.
 //
-// Translates only; never sets state directly (PLAN.md §3, invariant 3). Talks to the manager
+// Translates only; never sets state directly. Talks to the manager
 // through the seam, not to CBCentralManager directly.
 //
-// Also owns the adapter-state broadcast behind `Central.adapterStates` (PLAN.md §7 Q5).
+// Also owns the adapter-state broadcast behind `Central.adapterStates`.
 //
 // Queue-confined: every method here runs on the library queue, either because CoreBluetooth
 // delivered the callback there or because the caller is an actor on that queue's executor.
@@ -12,7 +12,7 @@ import Foundation
 
 /// A connection, as far as the central-side bridge is concerned.
 ///
-/// Phase 2d implements this on the connection's engine. Keeping it a protocol means the bridge
+/// The connection's engine implements this. Keeping it a protocol means the bridge
 /// can be tested on its own — routing is a thing that can be got wrong, and it is much easier
 /// to see wrong here than three layers up.
 protocol ConnectionSink: AnyObject, Sendable {
@@ -69,15 +69,18 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
     func startScan(_ options: ScanOptions) -> AsyncStream<Discovery> {
         library.assertIsolated()
         log.notice(
-            "scan requested (filter: \(options.services?.count ?? 0) service(s), "
+            "scan requested (filter: \(options.services.count) service(s), "
                 + "duplicates: \(options.allowDuplicates))"
         )
         return AsyncStream { continuation in
             let session = ScanSession(options: options, continuation: continuation)
             scans[session.id] = session
             applyScanPlan()
+            // `id`, not `session`: capturing the session would keep it — and its `reported`
+            // set, which grows with every peripheral seen — alive from the stream's storage.
+            let id = session.id
             continuation.onTermination = { [weak self, library] _ in
-                library.dispatchQueue.async { self?.endScan(session.id) }
+                library.dispatchQueue.async { self?.endScan(id) }
             }
         }
     }
@@ -124,7 +127,7 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
 
     /// Starts routing this peripheral's callbacks to a connection.
     ///
-    /// Registration is explicit in both directions rather than weak: by PLAN.md §7 Q9 a link
+    /// Registration is explicit in both directions rather than weak: a link
     /// lives until something closes it, so its lifetime is a decision the central makes, never
     /// something ARC works out on its own.
     func register(_ sink: ConnectionSink) {
@@ -188,10 +191,10 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
         let metadata = ["peripheral": peripheral.identifier.uuidString]
         bridgeLog.debug("didConnect \(peripheral.identifier)", metadata)
         guard let sink = sinks[peripheral.identifier] else {
-            // Nobody is waiting for this link. It is the race in PLAN.md §7 Q10: the last
+            // Nobody is waiting for this link. It is the detach race: the last
             // caller cancelled, the attempt was withdrawn, and it landed anyway. Close it —
-            // by Q9 nothing else ever would.
-            log.notice("connect landed with no waiter, closing (PLAN.md §7 Q10)", metadata)
+            // nothing else ever would.
+            log.notice("connect landed with no waiter, closing", metadata)
             seam.cancelConnection(peripheral)
             return
         }

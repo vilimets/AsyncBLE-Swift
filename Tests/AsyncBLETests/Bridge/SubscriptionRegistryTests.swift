@@ -123,7 +123,7 @@ struct SubscriptionRegistryTests {
     @Test("any other ending throws the reason", arguments: [
         DisconnectReason.reconnectGaveUp,
         .linkLost,
-        .bluetoothUnavailable(.poweredOff)
+        .bluetoothUnavailable(reason: .poweredOff)
     ])
     func otherEndingsThrow(reason: DisconnectReason) async {
         let (registry, _) = makeRegistry()

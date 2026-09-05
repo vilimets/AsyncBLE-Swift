@@ -31,7 +31,7 @@ final class QueueScheduler: Scheduler {
 
     func schedule(after duration: Duration, _ work: @escaping @Sendable () -> Void) -> ScheduledWork {
         let item = DispatchWorkItem(block: work)
-        // Wall time, not uptime. PLAN.md §7 Q20 says a give-up deadline means what it says, and
+        // Wall time, not uptime. A give-up deadline means what it says, and
         // a deadline measured on the uptime clock silently stops counting while the device is
         // asleep — which is most of a two-minute wait on a locked phone.
         queue.asyncAfter(wallDeadline: .now() + duration.seconds, execute: item)

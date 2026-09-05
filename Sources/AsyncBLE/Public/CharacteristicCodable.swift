@@ -1,4 +1,4 @@
-// Decoding and encoding for typed characteristics (PLAN.md §7 Q24).
+// Decoding and encoding for typed characteristics.
 //
 // Two protocols rather than one: plenty of characteristics travel in a single direction — a
 // measurement is only ever read, a control point only ever written — and requiring the unused
@@ -45,7 +45,7 @@ public protocol CharacteristicEncodable: Sendable {
 ///
 /// Most application types want this; the halves exist separately for characteristics that are
 /// only ever read or only ever written.
-public typealias CharacteristicValue = CharacteristicDecodable & CharacteristicEncodable
+public typealias CharacteristicCodable = CharacteristicDecodable & CharacteristicEncodable
 
 /// What the built-in conformances throw.
 ///
@@ -61,7 +61,7 @@ public enum CharacteristicDecodingError: Error, Sendable, Equatable {
 
 // MARK: - Built-in conformances
 
-extension Data: CharacteristicValue {
+extension Data: CharacteristicCodable {
     /// The bytes, unchanged — the escape hatch from typed values back to raw ones.
     public init(characteristicData: Data) throws {
         self = characteristicData
@@ -70,7 +70,7 @@ extension Data: CharacteristicValue {
     public var characteristicData: Data { self }
 }
 
-extension String: CharacteristicValue {
+extension String: CharacteristicCodable {
     /// Decodes UTF-8, which is what the Bluetooth SIG's string characteristics use.
     public init(characteristicData: Data) throws {
         guard let decoded = String(data: characteristicData, encoding: .utf8) else {
@@ -98,11 +98,7 @@ extension CharacteristicDecodable where Self: FixedWidthInteger {
                 actual: characteristicData.count
             )
         }
-        var value: Self = 0
-        withUnsafeMutableBytes(of: &value) { raw in
-            _ = characteristicData.copyBytes(to: raw.bindMemory(to: UInt8.self))
-        }
-        self = Self(littleEndian: value)
+        self = Self(littleEndian: characteristicData.withUnsafeBytes { $0.loadUnaligned(as: Self.self) })
     }
 }
 
@@ -113,11 +109,11 @@ extension CharacteristicEncodable where Self: FixedWidthInteger {
     }
 }
 
-extension UInt8: CharacteristicValue {}
-extension UInt16: CharacteristicValue {}
-extension UInt32: CharacteristicValue {}
-extension UInt64: CharacteristicValue {}
-extension Int8: CharacteristicValue {}
-extension Int16: CharacteristicValue {}
-extension Int32: CharacteristicValue {}
-extension Int64: CharacteristicValue {}
+extension UInt8: CharacteristicCodable {}
+extension UInt16: CharacteristicCodable {}
+extension UInt32: CharacteristicCodable {}
+extension UInt64: CharacteristicCodable {}
+extension Int8: CharacteristicCodable {}
+extension Int16: CharacteristicCodable {}
+extension Int32: CharacteristicCodable {}
+extension Int64: CharacteristicCodable {}

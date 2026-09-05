@@ -1,5 +1,8 @@
-// The library's name for the one CoreBluetooth type that appears in its public API.
-// See PLAN.md §3 invariant 1 and §7 Q23.
+// The library's names for the one CoreBluetooth type that appears in its public API.
+//
+// `CBUUID` in a characteristic position is spelled `CharacteristicID`; in a service position,
+// `ServiceID`. Same underlying type, two roles, so that no consumer has to import CoreBluetooth
+// merely to name what it is addressing.
 
 @preconcurrency import CoreBluetooth
 
@@ -18,7 +21,19 @@
 /// let data = try await connection.read(measurement)
 /// ```
 ///
-/// > Note: Service identifiers are spelled `CBUUID`, not `CharacteristicID` — ``ScanOptions``
-/// > and ``AdvertisementData`` hold the same underlying type in a different role, and naming
-/// > those after characteristics would be worse than naming them after Apple's type.
+/// > Note: Service identifiers are spelled ``ServiceID``. It is the same underlying type in a
+/// > different role, and naming a service after a characteristic would be worse than giving it
+/// > its own name.
 public typealias CharacteristicID = CBUUID
+
+/// The identifier of a GATT service.
+///
+/// ``CharacteristicID``'s counterpart: the same `CBUUID`, named for the other role it plays.
+/// Filtering a scan is the common case, and filtering is strongly preferred over an unfiltered
+/// scan — so this is what keeps a real app from having to import CoreBluetooth.
+///
+/// ```swift
+/// let heartRate = ServiceID(string: "180D")
+/// for await device in try await central.scan(services: [heartRate]) { ... }
+/// ```
+public typealias ServiceID = CBUUID

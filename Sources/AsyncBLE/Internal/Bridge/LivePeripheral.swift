@@ -9,7 +9,7 @@ import Foundation
 /// `PeripheralSeam` over a real `CBPeripheral`.
 final class LivePeripheral: NSObject, PeripheralSeam, @unchecked Sendable {
     /// The wrapped peripheral. `LiveCentral` needs it to connect and cancel, and the escape
-    /// hatch hands it to the caller (PLAN.md §7 Q6).
+    /// hatch hands it to the caller.
     let peripheral: CBPeripheral
 
     weak var seamDelegate: PeripheralSeamDelegate?
@@ -27,7 +27,7 @@ final class LivePeripheral: NSObject, PeripheralSeam, @unchecked Sendable {
     ///
     /// The library owns the delegate for the peripheral's whole life; that is the mechanism
     /// behind the documented limit on the escape hatch, where a callback-based CoreBluetooth
-    /// call would deliver its result here and be dropped (PLAN.md §7 Q13).
+    /// call would deliver its result here and be dropped.
     init(_ peripheral: CBPeripheral) {
         self.peripheral = peripheral
         super.init()

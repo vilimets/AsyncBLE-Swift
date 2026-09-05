@@ -35,7 +35,7 @@ enum ConnectionEffect: Sendable, Equatable {
     /// Start the reconnect policy's give-up deadline. Fires
     /// ``ConnectionEvent/giveUpDeadlineReached``.
     ///
-    /// Wall-clock: it is never paused, including while the adapter is off (PLAN.md §7 Q20).
+    /// Wall-clock: it is never paused, including while the adapter is off.
     ///
     /// - Parameter duration: How long to keep waiting.
     case startGiveUpDeadline(Duration)
@@ -59,7 +59,7 @@ enum ConnectionEffect: Sendable, Equatable {
     /// Drop every cached `CBService` and `CBCharacteristic`.
     ///
     /// CoreBluetooth invalidates those objects on disconnect, so they cannot survive a drop —
-    /// and on the way back in they are rebuilt lazily, on first use (PLAN.md §7 Q2).
+    /// and on the way back in they are rebuilt lazily, on first use.
     case invalidateDiscoveryCache
 
     /// Hold notification streams open but stop yielding: the link is gone and the
@@ -68,8 +68,8 @@ enum ConnectionEffect: Sendable, Equatable {
 
     /// Re-walk discovery and re-subscribe every marked notification stream.
     ///
-    /// A stream whose characteristic did not come back throws rather than finishing quietly
-    /// (PLAN.md §7 Q8); the machine does not model that, since it is per-characteristic.
+    /// A stream whose characteristic did not come back throws rather than finishing quietly;
+    /// the machine does not model that, since it is per-characteristic.
     case restoreSubscriptions
 
     /// Fail every queued and in-flight read and write, in call order.

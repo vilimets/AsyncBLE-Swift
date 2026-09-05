@@ -21,9 +21,17 @@ final class ScanSession: @unchecked Sendable {
     private let continuation: AsyncStream<Discovery>.Continuation
     private var reported: Set<UUID> = []
 
+    /// `options.services` as a set, hashed once at init rather than on every packet.
+    ///
+    /// `matches(_:)` runs per advertising packet per session, and `CBUUID` is an `NSObject` —
+    /// every hash is an `objc_msgSend`, so building this per packet was the library's hottest
+    /// allocation site under `allowDuplicates: true`.
+    private let wanted: Set<ServiceID>
+
     init(options: ScanOptions, continuation: AsyncStream<Discovery>.Continuation) {
         self.options = options
         self.continuation = continuation
+        wanted = Set(options.services)
     }
 
     /// Offers a discovery to this session, which takes it only if it asked for it.
@@ -45,11 +53,13 @@ final class ScanSession: @unchecked Sendable {
     }
 
     private func matches(_ advertisement: AdvertisementData) -> Bool {
-        guard let wanted = options.services, !wanted.isEmpty else { return true }
+        guard !wanted.isEmpty else { return true }
         // The overflow area counts: a UUID that did not fit in the packet is still advertised,
         // and CoreBluetooth's own filter matches on it, so ours has to as well.
-        let advertised = Set(advertisement.serviceUUIDs).union(advertisement.overflowServiceUUIDs)
-        return !advertised.isDisjoint(with: wanted)
+        // Membership over the arrays rather than a set union: allocates nothing, and stops at
+        // the first hit.
+        return advertisement.serviceUUIDs.contains(where: wanted.contains)
+            || advertisement.overflowServiceUUIDs.contains(where: wanted.contains)
     }
 }
 
@@ -69,10 +79,10 @@ struct ScanPlan: Equatable {
     /// is what lets the bridge skip re-issuing a scan that would not change anything.
     init(sessions: some Collection<ScanSession>) {
         allowDuplicates = sessions.contains { $0.options.allowDuplicates }
-        if sessions.contains(where: { ($0.options.services ?? []).isEmpty }) {
+        if sessions.contains(where: { $0.options.services.isEmpty }) {
             services = nil
         } else {
-            let union = sessions.reduce(into: Set<CBUUID>()) { $0.formUnion($1.options.services ?? []) }
+            let union = sessions.reduce(into: Set<ServiceID>()) { $0.formUnion($1.options.services) }
             services = union.sorted { $0.uuidString < $1.uuidString }
         }
     }

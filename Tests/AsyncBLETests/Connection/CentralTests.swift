@@ -87,7 +87,7 @@ struct CentralAdapterTests {
     func scanWaitsForTheAdapter() async throws {
         // PLAN.md §7 Q7.4: a freshly created central reports `unknown` for a few milliseconds,
         // and failing during that window would make every app's first call a coin toss.
-        let rig = CentralRig(adapterState: .unavailable(.unknown))
+        let rig = CentralRig(adapterState: .unavailable(reason: .unknown))
         let scan = Task { try await rig.central.scan() }
 
         await waitUntil { rig.sync { rig.radio.calls.isEmpty } == false || true }
@@ -100,34 +100,34 @@ struct CentralAdapterTests {
 
     @Test("scanning with the adapter off throws, and says which off")
     func scanThrowsWhenUnavailable() async {
-        let rig = CentralRig(adapterState: .unavailable(.poweredOff))
+        let rig = CentralRig(adapterState: .unavailable(reason: .poweredOff))
 
         let thrown = await errorThrown { try await rig.central.scan() }
 
-        #expect(thrown == .bluetoothUnavailable(.poweredOff))
+        #expect(thrown == .bluetoothUnavailable(reason: .poweredOff))
         #expect(rig.sync { rig.radio.calls }.isEmpty)
     }
 
     @Test("connecting with the adapter off throws before anything is armed")
     func connectThrowsWhenUnavailable() async {
-        let rig = CentralRig(adapterState: .unavailable(.unauthorized))
+        let rig = CentralRig(adapterState: .unavailable(reason: .unauthorized))
 
         let thrown = await errorThrown { try await rig.central.connect(rig.peripheralID) }
 
-        #expect(thrown == .bluetoothUnavailable(.unauthorized))
+        #expect(thrown == .bluetoothUnavailable(reason: .unauthorized))
         #expect(rig.sync { rig.radio.calls }.isEmpty)
     }
 
     @Test("the adapter stream is readable straight from the central")
     func adapterStatesStream() async {
-        let rig = CentralRig(adapterState: .unavailable(.unknown))
+        let rig = CentralRig(adapterState: .unavailable(reason: .unknown))
         var states = rig.central.adapterStates.makeAsyncIterator()
 
         let first = await states.next()
         rig.sync { rig.radio.emit(adapterState: .poweredOn) }
         let second = await states.next()
 
-        #expect(first == .unavailable(.unknown))
+        #expect(first == .unavailable(reason: .unknown))
         #expect(second == .poweredOn)
     }
 }
@@ -199,10 +199,10 @@ struct CentralConnectTests {
         #expect(rig.sync { rig.radio.calls }.contains(.cancelConnection(rig.peripheralID)))
     }
 
-    @Test("connectWhenAvailable has no deadline to run out")
+    @Test("connectWhenInRange has no deadline to run out")
     func pendingConnectHasNoDeadline() async {
         let rig = CentralRig()
-        let task = Task { try await rig.central.connectWhenAvailable(rig.peripheralID) }
+        let task = Task { try await rig.central.connectWhenInRange(rig.peripheralID) }
         await waitUntil { rig.sync { rig.radio.connectCount(for: rig.peripheralID) } == 1 }
 
         rig.sync { rig.scheduler.advance(by: .seconds(3600)) }
@@ -363,7 +363,7 @@ struct CentralLifetimeTests {
         // It holds a pending CoreBluetooth request, so it is exactly the kind of thing an audit
         // is looking for.
         let rig = CentralRig()
-        let task = Task { try await rig.central.connectWhenAvailable(rig.peripheralID) }
+        let task = Task { try await rig.central.connectWhenInRange(rig.peripheralID) }
         await waitUntil { rig.core?.state == .connecting }
 
         #expect(await rig.central.activeConnections.count == 1)

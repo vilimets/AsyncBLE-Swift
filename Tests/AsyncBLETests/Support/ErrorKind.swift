@@ -12,7 +12,7 @@ import Foundation
 
 /// A `BluetoothError` with its underlying error dropped, so it can be compared.
 enum ErrorKind: Equatable {
-    case bluetoothUnavailable(UnavailableReason)
+    case bluetoothUnavailable(reason: UnavailableReason)
     case connectTimeout
     case connectionFailed
     case disconnected(DisconnectReason)
@@ -37,7 +37,7 @@ enum ErrorKind: Equatable {
 
     init(_ error: BluetoothError) {
         switch error {
-        case .bluetoothUnavailable(let reason): self = .bluetoothUnavailable(reason)
+        case .bluetoothUnavailable(reason: let reason): self = .bluetoothUnavailable(reason: reason)
         case .connectTimeout: self = .connectTimeout
         case .connectionFailed: self = .connectionFailed
         case .disconnected(let reason): self = .disconnected(reason)

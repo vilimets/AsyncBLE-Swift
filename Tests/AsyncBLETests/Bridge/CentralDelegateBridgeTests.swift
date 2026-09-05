@@ -33,20 +33,20 @@ struct CentralDelegateBridgeTests {
 
     @Test("the bridge starts holding whatever the adapter already said")
     func adapterStateStartsCurrent() {
-        let rig = makeBridge(adapterState: .unavailable(.unknown))
-        #expect(rig.bridge.adapterStates.current == .unavailable(.unknown))
+        let rig = makeBridge(adapterState: .unavailable(reason: .unknown))
+        #expect(rig.bridge.adapterStates.current == .unavailable(reason: .unknown))
     }
 
     @Test("adapter changes are broadcast")
     func adapterChangesBroadcast() async {
-        let rig = makeBridge(adapterState: .unavailable(.unknown))
+        let rig = makeBridge(adapterState: .unavailable(reason: .unknown))
         var iterator = rig.bridge.adapterStates.stream().makeAsyncIterator()
         let initial = await iterator.next()
 
         rig.central.emit(adapterState: .poweredOn)
         let next = await iterator.next()
 
-        #expect(initial == .unavailable(.unknown))
+        #expect(initial == .unavailable(reason: .unknown))
         #expect(next == .poweredOn)
     }
 
@@ -213,7 +213,7 @@ struct CentralDelegateBridgeTests {
         let stream = rig.library.sync { rig.bridge.startScan(ScanOptions()) }
         var values = stream.makeAsyncIterator()
 
-        rig.central.emit(adapterState: .unavailable(.poweredOff))
+        rig.central.emit(adapterState: .unavailable(reason: .poweredOff))
         let ended = await values.next()
 
         #expect(ended == nil)
@@ -254,10 +254,10 @@ struct CentralDelegateBridgeTests {
             rig.bridge.register(second)
         }
 
-        rig.central.emit(adapterState: .unavailable(.poweredOff))
+        rig.central.emit(adapterState: .unavailable(reason: .poweredOff))
 
-        #expect(first.events == [.adapterChanged(.unavailable(.poweredOff))])
-        #expect(second.events == [.adapterChanged(.unavailable(.poweredOff))])
+        #expect(first.events == [.adapterChanged(.unavailable(reason: .poweredOff))])
+        #expect(second.events == [.adapterChanged(.unavailable(reason: .poweredOff))])
     }
 
     @Test("unregistering stops the routing")

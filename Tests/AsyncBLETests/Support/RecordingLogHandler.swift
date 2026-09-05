@@ -49,6 +49,6 @@ extension LogFacility {
         _ handler: RecordingLogHandler,
         minimumLevel: LogLevel = .debug
     ) -> LogFacility {
-        LogFacility(isEnabled: true, minimumLevel: minimumLevel, handler: handler)
+        LogFacility(minimumLevel: minimumLevel, handler: handler)
     }
 }

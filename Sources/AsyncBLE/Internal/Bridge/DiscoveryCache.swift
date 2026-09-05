@@ -1,11 +1,11 @@
 // Lazy service/characteristic discovery, cached per connection.
 //
-// Hardest part of Phase 2 (PLAN.md §5): concurrent callers asking for the same characteristic
+// The hardest part of the bridge: concurrent callers asking for the same characteristic
 // must coalesce onto one in-flight discovery, not start N of them.
 //
 // And the cache is not stable for the life of the connection — CoreBluetooth invalidates every
 // CBService/CBCharacteristic on disconnect, so a reconnect flushes it, re-walks discovery, and
-// restores whatever notification subscriptions were live (PLAN.md §7 Q2).
+// restores whatever notification subscriptions were live.
 //
 // Shape: one full walk — all services, then all characteristics of each — rather than a
 // targeted search. The public API addresses characteristics by UUID alone, so there is no
@@ -41,7 +41,7 @@ final class DiscoveryCache: @unchecked Sendable {
 
     init(peripheral: PeripheralSeam, log: LogFacility = .disabled) {
         self.peripheral = peripheral
-        self.log = log.scoped(.discovery)
+        self.log = log.scoped(.gatt)
     }
 
     /// Whether a full walk has completed on the current link.

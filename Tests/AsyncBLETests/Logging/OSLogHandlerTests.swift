@@ -27,6 +27,6 @@ struct OSLogHandlerTests {
 
     @Test("is the default handler")
     func isDefault() {
-        #expect(Logging().handler is OSLogHandler)
+        #expect(LogConfiguration().handler is OSLogHandler)
     }
 }

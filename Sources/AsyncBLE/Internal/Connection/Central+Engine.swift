@@ -1,5 +1,5 @@
-// The central's own engine: waiting for the adapter, and the registry rules from PLAN.md §7
-// Q3, Q9 and Q10 — one connection per peripheral, held until it ends, shared by every caller.
+// The central's own engine: waiting for the adapter, and the registry rules
+// One connection per peripheral, held until it ends, shared by every caller.
 
 @preconcurrency import CoreBluetooth
 import Foundation
@@ -7,11 +7,11 @@ import Foundation
 extension Central {
     /// Waits for the adapter to say something definitive, and throws if that is bad news.
     ///
-    /// `scan(_:)` and `connect(_:timeout:)` are `async throws` for exactly this (PLAN.md §7
-    /// Q7.4): a freshly created central reports `unknown` for a few milliseconds, and failing
-    /// during that window would make every app's first call a coin toss.
+    /// `scan(_:)` and `connect(_:timeout:)` are `async throws` for exactly this: a freshly
+    /// created central reports `unknown` for a few milliseconds, and failing during that window
+    /// would make every app's first call a coin toss.
     func requirePoweredOn() async throws {
-        guard case .unavailable(let reason) = await definitiveAdapterState() else { return }
+        guard case .unavailable(reason: let reason) = await definitiveAdapterState() else { return }
         log.error("bluetooth unavailable: \(reason)")
         throw BluetoothError.bluetoothUnavailable(reason: reason)
     }
@@ -19,16 +19,16 @@ extension Central {
     /// The adapter's state once it is something other than "not yet known".
     private func definitiveAdapterState() async -> AdapterState {
         let current = bridge.adapterStates.current
-        guard current == .unavailable(.unknown) else { return current }
+        guard current == .unavailable(reason: .unknown) else { return current }
 
-        for await state in bridge.adapterStates.stream() where state != .unavailable(.unknown) {
+        for await state in bridge.adapterStates.stream() where state != .unavailable(reason: .unknown) {
             return state
         }
         return bridge.adapterStates.current
     }
 
     /// The shared path behind ``Central/connect(_:timeout:)`` and
-    /// ``Central/connectWhenAvailable(_:)``.
+    /// ``Central/connectWhenInRange(_:)``.
     ///
     /// - Parameters:
     ///   - peripheralID: Which peripheral.
@@ -40,7 +40,7 @@ extension Central {
 
         if core.state == .connected {
             // Already up. A link is device-wide, so this caller gets the one that exists
-            // (PLAN.md §7 Q3) rather than a second one.
+            // rather than a second one.
             log.debug("connect \(peripheralID): returning the live connection", ["peripheral": peripheralID.uuidString])
             return connection
         }
@@ -49,15 +49,18 @@ extension Central {
         // state machine's timeout, which is what actually withdraws the CoreBluetooth request.
         // Joining one — or joining a reconnect wait, which may be indefinite — cannot restart
         // that, so the caller carries its own deadline and detaches when it expires.
-        let metadata = ["peripheral": peripheralID.uuidString]
+        // Both the metadata dictionary and the `Duration` interpolation stay inside the
+        // autoclosures — hoisted into `let`s they were built on every connect, logging or not.
         var callerTimeout = timeout
         if case .disconnected = core.state {
-            let deadline = timeout.map { "\($0)" } ?? "none"
-            log.info("connect \(peripheralID) requested (timeout: \(deadline))", metadata)
+            log.info(
+                "connect \(peripheralID) requested (timeout: \(timeout.map { "\($0)" } ?? "none"))",
+                core.peripheralMetadata
+            )
             core.requestConnect(timeout: timeout)
             callerTimeout = nil
         } else {
-            log.debug("connect \(peripheralID): coalescing onto the attempt in flight", metadata)
+            log.debug("connect \(peripheralID): coalescing onto the attempt in flight", core.peripheralMetadata)
         }
 
         try await waitForLink(on: core, timeout: callerTimeout)
@@ -79,7 +82,7 @@ extension Central {
     /// The connection for a peripheral, creating one if this central has none.
     ///
     /// One per peripheral, for the whole central: coalescing two callers onto one attempt and
-    /// handing them one object is the same thing (PLAN.md §7 Q7.1, Q3).
+    /// handing them one object is the same thing.
     private func connection(for peripheralID: UUID) throws -> Connection {
         if let existing = registry.connection(for: peripheralID) {
             return existing

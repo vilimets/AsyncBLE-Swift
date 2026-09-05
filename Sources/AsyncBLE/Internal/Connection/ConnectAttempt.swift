@@ -1,6 +1,6 @@
 // One caller's wait for a link, and the two ways it can end early.
 //
-// PLAN.md §7 Q10: cancelling one caller detaches that caller only; the attempt survives while
+// Cancelling one caller detaches that caller only; the attempt survives while
 // anyone is still waiting, and is withdrawn when the last one leaves. That means a waiter can be
 // resumed from three directions — the link coming up, the connection ending, the caller's own
 // task being cancelled or its deadline expiring — and exactly one of them may win.

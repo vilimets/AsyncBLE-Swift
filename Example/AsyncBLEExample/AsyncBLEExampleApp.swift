@@ -21,7 +21,7 @@ struct AsyncBLEExampleApp: App {
 /// Bluetooth permission, so making a new one per screen would be user-hostile.
 @MainActor
 final class ScannerModel: ObservableObject {
-    @Published private(set) var adapter: AdapterState = .unavailable(.unknown)
+    @Published private(set) var adapter: AdapterState = .unavailable(reason: .unknown)
     @Published private(set) var discoveries: [Discovery] = []
     @Published private(set) var failure: String?
     @Published private(set) var isScanning = false
@@ -84,7 +84,7 @@ struct ScanView: View {
     var body: some View {
         NavigationStack {
             List {
-                if case .unavailable(let reason) = model.adapter {
+                if case .unavailable(reason: let reason) = model.adapter {
                     Section {
                         Label("Bluetooth unavailable: \(String(describing: reason))", systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.orange)

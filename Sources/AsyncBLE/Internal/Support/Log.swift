@@ -1,7 +1,7 @@
 // The internal side of logging: the resolved configuration, and the category-bound value the
 // engine actually calls.
 //
-// Logging config is init-only (PLAN.md §7 Q22), so `LogFacility` is immutable after
+// Logging config is init-only, so `LogFacility` is immutable after
 // construction — no queue confinement, `Sendable` by virtue of holding a `Sendable` handler.
 //
 // `Log` is a cheap value carrying one category. Every emit takes its message as an
@@ -12,35 +12,27 @@ import Foundation
 
 /// The resolved logging configuration, shared by a ``Central`` and everything it creates.
 final class LogFacility: Sendable {
-    let isEnabled: Bool
-    let minimumLevel: LogLevel
+    /// The threshold, or `nil` when nothing is emitted.
+    let minimumLevel: LogLevel?
     let handler: LogHandler
 
-    init(isEnabled: Bool, minimumLevel: LogLevel, handler: LogHandler) {
-        self.isEnabled = isEnabled
+    init(minimumLevel: LogLevel?, handler: LogHandler) {
         self.minimumLevel = minimumLevel
         self.handler = handler
     }
 
     /// Builds a facility from the public configuration.
-    convenience init(_ logging: Logging) {
-        self.init(
-            isEnabled: logging.isEnabled,
-            minimumLevel: logging.minimumLevel,
-            handler: logging.handler
-        )
+    convenience init(_ logging: LogConfiguration) {
+        self.init(minimumLevel: logging.minimumLevel, handler: logging.handler)
     }
 
     /// A facility that never emits. The default in tests and wherever no configuration is given.
-    static let disabled = LogFacility(
-        isEnabled: false,
-        minimumLevel: .error,
-        handler: NoOpLogHandler()
-    )
+    static let disabled = LogFacility(minimumLevel: nil, handler: NoOpLogHandler())
 
     /// Whether a record at `level` would be emitted.
     func isActive(_ level: LogLevel) -> Bool {
-        isEnabled && level >= minimumLevel
+        guard let minimumLevel else { return false }
+        return level >= minimumLevel
     }
 
     /// Emits a record, unless the level is suppressed. `message` and `metadata` are not

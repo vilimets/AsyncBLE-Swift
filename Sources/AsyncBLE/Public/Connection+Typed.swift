@@ -1,4 +1,4 @@
-// Typed I/O, layered strictly over the untyped API (PLAN.md §7 Q24).
+// Typed I/O, layered strictly over the untyped API.
 //
 // Every method here forwards to its `CharacteristicID` counterpart and then encodes or decodes.
 // Nothing about the FIFO, discovery, reconnect or subscription-restore behaviour changes —
@@ -53,31 +53,20 @@ extension Connection {
     /// - Parameters:
     ///   - characteristic: The characteristic to subscribe to.
     ///   - bufferingPolicy: How to behave when the consumer falls behind the peripheral.
+    ///     Applied to the underlying `Data` stream, which is the only buffer between the
+    ///     radio and you — decoding happens as you iterate, not ahead of you.
     /// - Returns: A stream of decoded values.
     /// - Throws: Everything ``notifications(for:bufferingPolicy:)->AsyncThrowingStream<Data,Error>`` throws.
     public func notifications<Value: CharacteristicDecodable>(
         for characteristic: Characteristic<Value>,
-        bufferingPolicy: AsyncThrowingStream<Value, Error>.Continuation.BufferingPolicy =
+        bufferingPolicy: AsyncThrowingStream<Data, Error>.Continuation.BufferingPolicy =
             .bufferingNewest(256)
-    ) async throws -> AsyncThrowingStream<Value, Error> {
-        let raw = try await notifications(
-            for: characteristic.id,
-            bufferingPolicy: Self.dataPolicy(matching: bufferingPolicy)
-        )
-
-        return AsyncThrowingStream<Value, Error>(bufferingPolicy: bufferingPolicy) { continuation in
-            let task = Task {
-                do {
-                    for try await data in raw {
-                        continuation.yield(try Self.decode(data, for: characteristic))
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
+    ) async throws -> AsyncThrowingMapSequence<AsyncThrowingStream<Data, Error>, Value> {
+        // `map` rather than a second stream fed by a pump task: the transform is 1:1, so a
+        // second buffer would only mean the caller's bound was applied twice — and decoding
+        // in the consumer's own context saves a hop off the library queue per packet.
+        try await notifications(for: characteristic.id, bufferingPolicy: bufferingPolicy)
+            .map { try Self.decode($0, for: characteristic) }
     }
 
     // MARK: - Shared
@@ -90,21 +79,6 @@ extension Connection {
             return try Value(characteristicData: data)
         } catch {
             throw BluetoothError.decodingFailed(characteristic: characteristic.id, underlying: error)
-        }
-    }
-
-    /// Restates a buffering policy for the underlying `Data` stream.
-    ///
-    /// `BufferingPolicy` is nested inside the stream's generic parameter, so the two streams'
-    /// policies are unrelated types that happen to have identical cases.
-    private static func dataPolicy<Value>(
-        matching policy: AsyncThrowingStream<Value, Error>.Continuation.BufferingPolicy
-    ) -> AsyncThrowingStream<Data, Error>.Continuation.BufferingPolicy {
-        switch policy {
-        case .unbounded: .unbounded
-        case .bufferingOldest(let count): .bufferingOldest(count)
-        case .bufferingNewest(let count): .bufferingNewest(count)
-        @unknown default: .bufferingNewest(256)
         }
     }
 }

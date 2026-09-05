@@ -156,9 +156,17 @@ struct DeviceView: View {
     private var characteristic: CharacteristicID? {
         let trimmed = characteristicText.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
-        // CharacteristicID(string:) traps on malformed input, so validate the shape first.
-        let isValid = trimmed.count == 4 || trimmed.count == 8 || trimmed.count == 36
-        return isValid ? CharacteristicID(string: trimmed) : nil
+        // CharacteristicID(string:) traps on malformed input, so validate fully before calling
+        // it. Length alone is not enough — "ZZZZ" is four characters and still a crash.
+        switch trimmed.count {
+        case 4, 8:
+            guard trimmed.allSatisfy(\.isHexDigit) else { return nil }
+        case 36:
+            guard UUID(uuidString: trimmed) != nil else { return nil }
+        default:
+            return nil
+        }
+        return CharacteristicID(string: trimmed)
     }
 
     var body: some View {

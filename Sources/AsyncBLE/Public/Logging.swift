@@ -3,7 +3,7 @@
 // The library logs to OSLog by default (``OSLogHandler``). A consumer who wants the output
 // somewhere else — their own logging stack, a file, a test assertion — supplies a
 // ``LogHandler``. Enable/disable and the level threshold are fixed at ``Central`` init
-// (PLAN.md §7 Q22): there is no runtime setter, because OSLog is normally retuned from outside
+//: there is no runtime setter, because OSLog is normally retuned from outside
 // the process and a mutable knob would buy little.
 //
 // What is never logged: the bytes of a characteristic value. The library logs a length, not a
@@ -58,8 +58,11 @@ public enum LogCategory: String, Sendable, CaseIterable {
     /// Characteristic I/O — reads, writes, and notification subscriptions.
     case io
 
-    /// The service and characteristic discovery walk, and the per-link cache.
-    case discovery
+    /// The GATT service and characteristic discovery walk, and the per-link cache.
+    ///
+    /// Named for the protocol rather than the act, so that it does not collide with
+    /// ``Discovery``, which is a scan result and an unrelated thing.
+    case gatt
 
     /// Reconnection: pending-connect arming, the give-up deadline, the re-arm cadence, and
     /// restoring subscriptions after a link returns.
@@ -111,7 +114,7 @@ public struct LogRecord: Sendable {
 ///
 /// Implement this to route logging into your own stack, or to assert on it in tests. The library
 /// calls ``log(_:)`` on its internal serial queue; a handler that does real work should hop off
-/// it. Only records at or above the configured ``Logging/minimumLevel`` are delivered.
+/// it. Only records at or above the configured ``LogConfiguration/minimumLevel`` are delivered.
 public protocol LogHandler: Sendable {
     /// Handles one record. Called on the library's queue.
     func log(_ record: LogRecord)
@@ -152,10 +155,10 @@ public struct OSLogHandler: LogHandler {
 ///
 /// Passed as the second argument to ``Central/init(configuration:logging:)``. Held apart from
 /// ``Central/Configuration`` because ``handler`` is a protocol existential and would cost
-/// `Configuration` its `Equatable` conformance (PLAN.md §7 Q15, Q22).
+/// `Configuration` its `Equatable` conformance.
 ///
 /// ```swift
-/// // Default: OSLog, on, at .notice.
+/// // Default: OSLog, at .notice.
 /// let central = Central()
 ///
 /// // More detail, still to OSLog.
@@ -165,14 +168,14 @@ public struct OSLogHandler: LogHandler {
 /// let central = Central(logging: .init(handler: MyLogHandler()))
 ///
 /// // Off.
-/// let central = Central(logging: .init(isEnabled: false))
+/// let central = Central(logging: .disabled)
 /// ```
-public struct Logging: Sendable {
-    /// Whether the library emits anything at all. Defaults to `true`.
-    public var isEnabled: Bool
-
-    /// The lowest level that is emitted. Defaults to ``LogLevel/notice``.
-    public var minimumLevel: LogLevel
+public struct LogConfiguration: Sendable {
+    /// The lowest level that is emitted, or `nil` to emit nothing.
+    ///
+    /// Defaults to ``LogLevel/notice``. "Off" is a threshold no record can meet rather than a
+    /// separate switch, so there is no way to express a configuration that contradicts itself.
+    public var minimumLevel: LogLevel?
 
     /// Where records go. Defaults to an ``OSLogHandler`` under the `"com.asyncble"` subsystem.
     public var handler: LogHandler
@@ -180,18 +183,19 @@ public struct Logging: Sendable {
     /// Creates a logging configuration.
     ///
     /// - Parameters:
-    ///   - isEnabled: Whether the library emits anything. Defaults to `true`.
-    ///   - minimumLevel: The lowest level emitted. Defaults to ``LogLevel/notice``.
+    ///   - minimumLevel: The lowest level emitted, or `nil` for none. Defaults to
+    ///     ``LogLevel/notice``.
     ///   - handler: The sink for records. Defaults to ``OSLogHandler``.
     public init(
-        isEnabled: Bool = true,
-        minimumLevel: LogLevel = .notice,
+        minimumLevel: LogLevel? = .notice,
         handler: LogHandler = OSLogHandler()
     ) {
-        self.isEnabled = isEnabled
         self.minimumLevel = minimumLevel
         self.handler = handler
     }
+
+    /// A configuration that emits nothing.
+    public static let disabled = LogConfiguration(minimumLevel: nil, handler: NoOpLogHandler())
 }
 
 extension LogLevel {

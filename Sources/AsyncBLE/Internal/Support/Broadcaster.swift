@@ -1,7 +1,7 @@
 // Fan-out for the observable streams: `Central.adapterStates` and `Connection.states`.
 //
 // Both are documented to hand every caller an independent stream that yields the current value
-// immediately and then every change (PLAN.md §5). That is three requirements — fan-out, replay,
+// immediately and then every change. That is three requirements — fan-out, replay,
 // and unsubscribe-on-termination — and none of them come free with AsyncStream.
 //
 // This is the one type in the library that uses a lock rather than the library queue, and it is

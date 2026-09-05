@@ -1,8 +1,8 @@
 // Internal protocols over CBCentralManager / CBPeripheral, so the bridge, discovery cache,
-// write queue and reconnect path can be driven by fakes (PLAN.md §7 Q7).
+// write queue and reconnect path can be driven by fakes.
 //
 // Deliberately `internal`: this is not the public mock-injection abstraction, which stays on
-// the Planned list. It exists so the risky 70% of the library has automated coverage without
+// a later milestone. It exists so the risky 70% of the library has automated coverage without
 // taking a dependency that would put CBM* typealiases through the production source.
 //
 // Shape notes:
@@ -35,7 +35,7 @@ protocol CentralSeam: AnyObject, Sendable {
 
     /// Looks up a peripheral the system already knows about, by identifier.
     ///
-    /// This is what makes `connectWhenAvailable(_:)` work without a scan: a peripheral seen in
+    /// This is what makes `connectWhenInRange(_:)` work without a scan: a peripheral seen in
     /// an earlier session can be retrieved and connected directly.
     func peripheral(withID id: UUID) -> PeripheralSeam?
 

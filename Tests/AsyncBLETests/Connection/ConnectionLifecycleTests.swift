@@ -99,7 +99,7 @@ struct ConnectionReconnectTests {
         rig.sync { rig.peripheral.clearCalls() }
 
         rig.dropLink()
-        #expect(rig.state == .reconnecting(attempt: 1))
+        #expect(rig.state == .reconnecting(arm: 1))
         rig.relink()
         await waitUntil {
             rig.peripheralCalls.contains(.setNotify(true, characteristic: TestUUID.measurement))
@@ -163,7 +163,7 @@ struct ConnectionReconnectTests {
 
         rig.dropLink()
 
-        #expect(rig.state == .reconnecting(attempt: 1))
+        #expect(rig.state == .reconnecting(arm: 1))
         #expect(rig.sync { rig.central.calls } == [.connect(rig.peripheral.identifier)])
     }
 
@@ -190,9 +190,9 @@ struct ConnectionReconnectTests {
         rig.connect()
         rig.dropLink()
 
-        rig.setAdapter(.unavailable(.poweredOff))
+        rig.setAdapter(.unavailable(reason: .poweredOff))
         rig.sync { rig.scheduler.advance(by: .seconds(60)) }
-        #expect(rig.state == .reconnecting(attempt: 1))
+        #expect(rig.state == .reconnecting(arm: 1))
 
         rig.sync { rig.scheduler.advance(by: .seconds(60)) }
         #expect(rig.state == .disconnected(reason: .reconnectGaveUp))
@@ -203,13 +203,13 @@ struct ConnectionReconnectTests {
         let rig = ConnectionRig()
         rig.connect()
         rig.dropLink()
-        rig.setAdapter(.unavailable(.poweredOff))
+        rig.setAdapter(.unavailable(reason: .poweredOff))
         rig.sync { rig.central.clearCalls() }
 
         rig.setAdapter(.poweredOn)
 
         #expect(rig.sync { rig.central.calls } == [.connect(rig.peripheral.identifier)])
-        #expect(rig.state == .reconnecting(attempt: 1))
+        #expect(rig.state == .reconnecting(arm: 1))
     }
 }
 
@@ -272,7 +272,7 @@ struct ConnectionTerminationTests {
             .disconnected(reason: nil),
             .connecting,
             .connected,
-            .reconnecting(attempt: 1),
+            .reconnecting(arm: 1),
             .connected,
             .disconnected(reason: .userInitiated)
         ])

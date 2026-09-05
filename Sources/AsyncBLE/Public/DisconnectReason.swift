@@ -1,6 +1,6 @@
 // Why a link ended: user-initiated, timeout, connect failure, link drop, reconnect gave up.
 //
-// The user-initiated vs link-drop distinction is what routes reconnect (PLAN.md §2).
+// The user-initiated vs link-drop distinction is what routes reconnect.
 
 /// Why a connection ended.
 ///
@@ -17,11 +17,11 @@ public enum DisconnectReason: Sendable, Equatable {
     ///
     /// CoreBluetooth has no native connect timeout — a `connect` request stays pending
     /// forever — so this reason only exists because ``Central/connect(_:timeout:)-(UUID,_)`` imposes
-    /// one. ``Central/connectWhenAvailable(_:)`` never produces it.
+    /// one. ``Central/connectWhenInRange(_:)`` never produces it.
     case connectTimeout
 
     /// CoreBluetooth reported that the connect attempt failed.
-    case connectFailed
+    case connectionFailed
 
     /// The link dropped: out of range, peripheral powered down, or supervision timeout.
     ///
@@ -30,15 +30,15 @@ public enum DisconnectReason: Sendable, Equatable {
 
     /// The reconnect policy's deadline expired while waiting for the link to come back.
     ///
-    /// Only ``ReconnectPolicy/Persistence/until(_:)`` can produce this; an indefinite policy
-    /// waits as long as the peripheral takes. The deadline is wall-clock and runs even while
-    /// Bluetooth is switched off (PLAN.md §7 Q20).
+    /// Only ``ReconnectPolicy/giveUp(after:reArmEvery:)`` can produce this; an indefinite
+    /// policy waits as long as the peripheral takes. The deadline is wall-clock — see
+    /// <doc:Reconnection>.
     case reconnectGaveUp
 
     /// The Bluetooth adapter became unusable and no reconnect was being waited for.
     ///
-    /// Reported when the policy is ``ReconnectPolicy/none``. Under any waiting policy the
+    /// Reported when the policy is ``ReconnectPolicy/never``. Under any waiting policy the
     /// connection stays in `reconnecting` instead, because the adapter coming back is exactly
     /// the event the pending connect is waiting for.
-    case bluetoothUnavailable(UnavailableReason)
+    case bluetoothUnavailable(reason: UnavailableReason)
 }
