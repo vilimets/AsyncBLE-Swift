@@ -98,6 +98,21 @@ extension Central {
             throw BluetoothError.connectionFailed(underlying: nil)
         }
 
+        return makeConnection(for: peripheral)
+    }
+
+    /// Builds a connection around a peripheral and wires it into this central.
+    ///
+    /// Four things, and a connection missing any one of them is broken in a way that only shows
+    /// up later: the engine, the actor, the registry entry that keeps it alive until it ends,
+    /// and the bridge registration without which no CoreBluetooth callback ever reaches it.
+    /// Both callers — a connect request and a restoration — go through here for that reason.
+    ///
+    /// `nonisolated`, and asserted onto the library queue: restoration arrives as a
+    /// CoreBluetooth callback on that queue, which is this actor's executor.
+    nonisolated func makeConnection(for peripheral: PeripheralSeam) -> Connection {
+        library.assertIsolated()
+        let peripheralID = peripheral.identifier
         let core = ConnectionCore(
             peripheral: peripheral,
             bridge: bridge,
@@ -113,5 +128,48 @@ extension Central {
         registry.insert(connection)
         bridge.register(core)
         return connection
+    }
+
+    /// Adopts the links iOS handed back after relaunching the app.
+    ///
+    /// Each peripheral becomes an ordinary ``Connection`` — same engine, same registry, same
+    /// reconnect policy — started at the state the radio is actually in rather than at
+    /// `disconnected`. From here on nothing downstream knows these arrived by restoration.
+    ///
+    /// - Parameter peripherals: The restored peripherals, from `willRestoreState`.
+    nonisolated func adopt(restored peripherals: [PeripheralSeam]) {
+        library.assertIsolated()
+        for peripheral in peripherals {
+            // Already ours: iOS restored a peripheral this central has built a connection for.
+            // Nothing to adopt, and feeding `.restored` in again would be a lie about the state.
+            guard registry.connection(for: peripheral.identifier) == nil else {
+                log.debug(
+                    "restore \(peripheral.identifier): already held, ignoring",
+                    ["peripheral": peripheral.identifier.uuidString]
+                )
+                continue
+            }
+
+            let linkState = peripheral.linkState
+            guard linkState != .disconnected else {
+                // Neither a link nor a pending connect. iOS restored the object but there is
+                // nothing in flight to adopt, and building a connection to sit in the registry
+                // doing nothing would be a leak the app never asked for.
+                log.notice(
+                    "restore \(peripheral.identifier): neither connected nor connecting, skipping",
+                    ["peripheral": peripheral.identifier.uuidString]
+                )
+                continue
+            }
+
+            let connected = linkState == .connected
+            log.notice(
+                "restore \(peripheral.identifier): adopting a \(connected ? "live link" : "pending connect")",
+                ["peripheral": peripheral.identifier.uuidString]
+            )
+            let connection = makeConnection(for: peripheral)
+            connection.core.handleRestored(connected: connected)
+            self.restored.send(connection)
+        }
     }
 }

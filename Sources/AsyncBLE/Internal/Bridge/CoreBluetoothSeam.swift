@@ -58,6 +58,14 @@ protocol PeripheralSeam: AnyObject, Sendable {
     /// The peripheral's advertised or cached name.
     var name: String? { get }
 
+    /// Whether the radio currently has a link to this peripheral.
+    ///
+    /// Read in exactly one place: state restoration, which is handed peripherals rather than
+    /// events and has to tell a live link from a pending connect the OS is still holding. Every
+    /// other path in the library learns its state from the callbacks instead, which is why this
+    /// is not a general-purpose accessor.
+    var linkState: PeripheralLinkState { get }
+
     /// Who receives this peripheral's callbacks. Held weakly by conformers.
     var seamDelegate: PeripheralSeamDelegate? { get set }
 
@@ -91,6 +99,22 @@ protocol PeripheralSeam: AnyObject, Sendable {
 
     /// The peripheral itself, for the escape hatch. `nil` behind a fake, which has none.
     var rawPeripheral: CBPeripheral? { get }
+}
+
+/// Where a peripheral's link stands, as `CBPeripheralState` without the `disconnecting` case.
+///
+/// CoreBluetooth's `disconnecting` is folded into ``disconnected``: it means a cancel is in
+/// flight, and for the one question this enum answers — is there a link to adopt? — the answer
+/// is the same.
+enum PeripheralLinkState: Sendable, Equatable {
+    /// The link is up.
+    case connected
+
+    /// A connect request is armed and the OS is holding it.
+    case connecting
+
+    /// No link and no request.
+    case disconnected
 }
 
 /// What this library needs from `CBService`.
@@ -149,6 +173,19 @@ protocol CentralSeamDelegate: AnyObject, Sendable {
 
     /// A link ended — whether the peripheral walked away or the library asked for it.
     func centralSeam(_ seam: CentralSeam, didDisconnect peripheral: PeripheralSeam, error: NSError?)
+
+    /// iOS relaunched the app and is handing back what this central was doing when it was
+    /// terminated.
+    ///
+    /// Arrives before any other callback, including the adapter's first state — so a conformer
+    /// that is not wired up yet has to buffer rather than drop.
+    ///
+    /// - Parameters:
+    ///   - peripherals: The peripherals restored. Each carries its own ``PeripheralSeam/linkState``:
+    ///     a live link, or a pending connect the OS kept holding.
+    ///   - wasScanning: Whether a scan was running when the app was terminated. The library has
+    ///     no session behind a restored scan, so it stops it.
+    func centralSeam(_ seam: CentralSeam, willRestore peripherals: [PeripheralSeam], wasScanning: Bool)
 }
 
 /// The peripheral's callbacks, in the library's own vocabulary.

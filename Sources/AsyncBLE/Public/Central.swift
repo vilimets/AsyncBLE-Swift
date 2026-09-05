@@ -48,6 +48,12 @@ public actor Central {
     /// The links this central is holding open.
     nonisolated let registry = ConnectionRegistry()
 
+    /// The links iOS handed back after relaunching the app, behind ``restoredConnections``.
+    ///
+    /// Replays rather than holding a current value: a relaunch may restore several links, and
+    /// the app is asleep when they arrive. See `ReplayBroadcaster`.
+    nonisolated let restored = ReplayBroadcaster<Connection>()
+
     /// Runs this actor on the library queue rather than the global concurrency pool.
     ///
     /// An implementation detail that has to be public because `Actor` says so. It is what puts
@@ -71,7 +77,11 @@ public actor Central {
     ///     ``LogLevel/notice``.
     public init(configuration: Configuration = Configuration(), logging: LogConfiguration = LogConfiguration()) {
         let library = LibraryQueue()
-        let seam = LiveCentral(queue: library.dispatchQueue, showPowerAlert: configuration.showPowerAlert)
+        let seam = LiveCentral(
+            queue: library.dispatchQueue,
+            showPowerAlert: configuration.showPowerAlert,
+            restoreIdentifier: configuration.restoreIdentifier
+        )
         self.init(
             configuration: configuration,
             seam: seam,
@@ -95,6 +105,15 @@ public actor Central {
         self.scheduler = scheduler
         self.logFacility = logFacility
         bridge = CentralDelegateBridge(seam: seam, library: library, log: logFacility)
+        // Last, and after every stored property: setting this drains whatever restoration
+        // already buffered, which calls straight back into `self`.
+        //
+        // Weak, like the registry's back-reference: an app that has let its central go has
+        // nothing to restore into, and holding one alive from CoreBluetooth's side would keep
+        // the radio busy for an owner that no longer exists.
+        bridge.onRestoredPeripherals = { [weak self] peripherals in
+            self?.adopt(restored: peripherals)
+        }
     }
 
     /// The stream of Bluetooth adapter availability.
@@ -113,6 +132,38 @@ public actor Central {
     /// ```
     nonisolated public var adapterStates: AsyncStream<AdapterState> {
         bridge.adapterStates.stream()
+    }
+
+    /// The links iOS handed back after relaunching this app in the background.
+    ///
+    /// When a central is created with a ``Central/Configuration/restoreIdentifier`` and the app
+    /// declares the `bluetooth-central` background mode, iOS may terminate the app and relaunch
+    /// it later — when a peripheral this central was connected to reconnects, or when a pending
+    /// connect it was holding is fulfilled. The links come back here, as ``Connection`` objects
+    /// the app holds no reference to and could not otherwise reach.
+    ///
+    /// Every restored connection is also in ``activeConnections``. This stream exists because
+    /// nothing tells you *when* to look: restoration is delivered before the app has run a line
+    /// of its own code, so the stream replays everything restored so far to each new subscriber
+    /// and there is no window to miss.
+    ///
+    /// A restored connection carries its state and — where iOS kept the link up — the
+    /// peripheral's notify flags. It does not carry a discovery cache or the notification
+    /// streams from the previous process: re-subscribe, and a characteristic still notifying is
+    /// re-attached without a round trip to the peripheral.
+    ///
+    /// Each call returns an independent stream, and the stream never finishes: the app can be
+    /// relaunched more than once in a process's life.
+    ///
+    /// ```swift
+    /// for await connection in central.restoredConnections {
+    ///     for try await beat in try await connection.notifications(measurement) { … }
+    /// }
+    /// ```
+    ///
+    /// See <doc:BackgroundModes>.
+    nonisolated public var restoredConnections: AsyncStream<Connection> {
+        restored.stream()
     }
 
     /// Scans for peripherals.

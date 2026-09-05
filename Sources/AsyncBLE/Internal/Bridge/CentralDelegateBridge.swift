@@ -50,6 +50,25 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
     private var activePlan: ScanPlan?
     private var sinks: [UUID: ConnectionSink] = [:]
 
+    /// Where restored peripherals go: the owning ``Central``, which is the only thing that can
+    /// build a ``Connection`` around one. Set at the end of `Central.init`.
+    ///
+    /// Setting it drains anything that arrived first — see ``pendingRestoration``.
+    var onRestoredPeripherals: (([PeripheralSeam]) -> Void)? {
+        didSet {
+            guard let onRestoredPeripherals, !pendingRestoration.isEmpty else { return }
+            let pending = pendingRestoration
+            pendingRestoration = []
+            onRestoredPeripherals(pending)
+        }
+    }
+
+    /// Restored peripherals that arrived before the central attached its handler.
+    ///
+    /// The same race `LiveCentral` buffers against, one layer up: this bridge is built inside
+    /// `Central.init`, and the handler cannot be installed until the central exists.
+    private var pendingRestoration: [PeripheralSeam] = []
+
     init(seam: CentralSeam, library: LibraryQueue, log: LogFacility = .disabled) {
         self.seam = seam
         self.library = library
@@ -233,5 +252,24 @@ final class CentralDelegateBridge: CentralSeamDelegate, @unchecked Sendable {
             ["peripheral": peripheral.identifier.uuidString]
         )
         sinks[peripheral.identifier]?.handleDisconnected(error)
+    }
+
+    func centralSeam(_ seam: CentralSeam, willRestore peripherals: [PeripheralSeam], wasScanning: Bool) {
+        log.notice("restoring \(peripherals.count) peripheral(s) after a background relaunch")
+
+        if wasScanning {
+            // The OS restored a scan that nothing is consuming: the `ScanSession` that asked for
+            // it died with the process, so `applyScanPlan()` will not stop it either — its
+            // `activePlan` is nil. A scan with no consumer is the battery bug `startScan`'s
+            // terminator exists to prevent, so it is stopped here for the same reason.
+            log.notice("stopping the restored scan: nothing is consuming it")
+            seam.stopScan()
+        }
+
+        guard let onRestoredPeripherals else {
+            pendingRestoration.append(contentsOf: peripherals)
+            return
+        }
+        onRestoredPeripherals(peripherals)
     }
 }

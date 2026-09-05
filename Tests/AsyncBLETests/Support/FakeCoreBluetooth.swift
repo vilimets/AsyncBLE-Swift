@@ -62,10 +62,12 @@ final class FakeCentral: CentralSeam, @unchecked Sendable {
 
     func connect(_ peripheral: PeripheralSeam) {
         calls.append(.connect(peripheral.identifier))
+        (peripheral as? FakePeripheral)?.linkState = .connecting
     }
 
     func cancelConnection(_ peripheral: PeripheralSeam) {
         calls.append(.cancelConnection(peripheral.identifier))
+        (peripheral as? FakePeripheral)?.linkState = .disconnected
     }
 
     // MARK: Synthetic callbacks
@@ -87,6 +89,7 @@ final class FakeCentral: CentralSeam, @unchecked Sendable {
 
     /// Reports a link coming up.
     func emitConnect(_ peripheral: FakePeripheral) {
+        peripheral.linkState = .connected
         seamDelegate?.centralSeam(self, didConnect: peripheral)
     }
 
@@ -99,7 +102,20 @@ final class FakeCentral: CentralSeam, @unchecked Sendable {
     /// disconnect the library asked for, which is the ambiguity the library exists to resolve.
     func emitDisconnect(_ peripheral: FakePeripheral, error: NSError? = nil) {
         peripheral.linkDidDrop()
+        peripheral.linkState = .disconnected
         seamDelegate?.centralSeam(self, didDisconnect: peripheral, error: error)
+    }
+
+    /// Reports a background relaunch handing peripherals back, as `willRestoreState` would.
+    ///
+    /// Each peripheral's own ``FakePeripheral/linkState`` says what is being restored: a live
+    /// link, or a pending connect the OS kept holding.
+    ///
+    /// - Parameters:
+    ///   - peripherals: What iOS is handing back.
+    ///   - wasScanning: Whether a scan was running when the app was terminated.
+    func emitWillRestore(_ peripherals: [FakePeripheral], wasScanning: Bool = false) {
+        seamDelegate?.centralSeam(self, willRestore: peripherals, wasScanning: wasScanning)
     }
 
     // MARK: Assertions

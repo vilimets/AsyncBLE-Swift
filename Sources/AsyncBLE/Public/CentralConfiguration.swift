@@ -1,14 +1,10 @@
-// Tunables passed to `Central` at init: connect timeout, reconnect policy, power alert.
-//
-// `restoreIdentifier` is deliberately absent in 0.1.0 — it ships with the background milestone.
+// Tunables passed to `Central` at init: connect timeout, reconnect policy, power alert,
+// state-restoration identifier.
 
 import Foundation
 
 extension Central {
     /// Tunables for a ``Central``, fixed at initialization.
-    ///
-    /// There is deliberately no `restoreIdentifier` here. State restoration needs background
-    /// modes to mean anything, and this library does not ship a knob that does nothing.
     public struct Configuration: Sendable, Equatable {
         /// How long a connect attempt may run before it fails with
         /// ``BluetoothError/connectTimeout``.
@@ -35,20 +31,44 @@ extension Central {
         /// present their own UI than have the system interrupt at central-creation time.
         public var showPowerAlert: Bool
 
+        /// The identifier iOS files this central's state under, for restoration after the app
+        /// is terminated in the background.
+        ///
+        /// `nil` — the default — opts out: the central is an ordinary foreground one, and iOS
+        /// keeps nothing about it. A non-`nil` identifier opts in, and the links this central
+        /// holds are handed back on relaunch through ``Central/restoredConnections``.
+        ///
+        /// Two requirements, and the setting does nothing without both:
+        ///
+        /// - `bluetooth-central` must be in the app's `UIBackgroundModes`. Without it iOS
+        ///   never relaunches the app, so there is nothing to restore into.
+        /// - The identifier must be **stable across launches** and unique within the app. It is
+        ///   the key iOS files the state under; a fresh UUID each launch restores nothing.
+        ///
+        /// Creating a second central with the same identifier is a CoreBluetooth programming
+        /// error, so give each one its own.
+        ///
+        /// See <doc:BackgroundModes>.
+        public var restoreIdentifier: String?
+
         /// Creates a configuration.
         ///
         /// - Parameters:
         ///   - connectTimeout: How long a connect attempt may run.
         ///   - reconnectPolicy: How long to keep waiting after a link drops.
         ///   - showPowerAlert: Whether the system may show its "Turn On Bluetooth" alert.
+        ///   - restoreIdentifier: A stable identifier to file this central's state under, or
+        ///     `nil` to opt out of state restoration.
         public init(
             connectTimeout: Duration = .seconds(10),
             reconnectPolicy: ReconnectPolicy = .waitIndefinitely(),
-            showPowerAlert: Bool = false
+            showPowerAlert: Bool = false,
+            restoreIdentifier: String? = nil
         ) {
             self.connectTimeout = connectTimeout
             self.reconnectPolicy = reconnectPolicy
             self.showPowerAlert = showPowerAlert
+            self.restoreIdentifier = restoreIdentifier
         }
     }
 }

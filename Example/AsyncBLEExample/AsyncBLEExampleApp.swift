@@ -4,6 +4,10 @@
 // It is generic on purpose. A demo hardcoded to one peripheral proves the library works with
 // that peripheral; this one can be pointed at whatever hardware is on the desk, which is what
 // makes it useful as the manual smoke test.
+//
+// It also opts into state restoration, because that is the one part of the library no automated
+// test can reach: it needs a real device, a real termination and a real peripheral walking back
+// into range. See Example/README.md for that walkthrough.
 
 import AsyncBLE
 import SwiftUI
@@ -26,10 +30,20 @@ final class ScannerModel: ObservableObject {
     @Published private(set) var failure: String?
     @Published private(set) var isScanning = false
 
-    let central = Central()
+    /// Links iOS handed back after relaunching the app in the background, newest last.
+    @Published private(set) var restored: [UUID] = []
+
+    /// Constant, and it has to be: the restore identifier is the key iOS files this central's
+    /// state under, so a fresh one each launch would restore nothing, every launch, silently.
+    static let restoreIdentifier = "com.asyncble.example.central"
+
+    let central = Central(
+        configuration: .init(restoreIdentifier: ScannerModel.restoreIdentifier)
+    )
 
     private var adapterTask: Task<Void, Never>?
     private var scanTask: Task<Void, Never>?
+    private var restoreTask: Task<Void, Never>?
 
     /// Follows adapter availability for the banner. Never finishes while the central lives.
     func watchAdapter() {
@@ -37,6 +51,19 @@ final class ScannerModel: ObservableObject {
         adapterTask = Task { [central] in
             for await state in central.adapterStates {
                 adapter = state
+            }
+        }
+    }
+
+    /// Picks up the links that survived a background termination.
+    ///
+    /// The stream replays, so starting this from `.task` — long after restoration was actually
+    /// delivered — misses nothing. That is the whole reason it is a stream.
+    func watchRestoredConnections() {
+        guard restoreTask == nil else { return }
+        restoreTask = Task { [central] in
+            for await connection in central.restoredConnections {
+                restored.append(connection.peripheralID)
             }
         }
     }
@@ -95,6 +122,16 @@ struct ScanView: View {
                         Text(failure).foregroundStyle(.red).font(.footnote)
                     }
                 }
+                if !model.restored.isEmpty {
+                    Section("Restored after a relaunch") {
+                        ForEach(model.restored, id: \.self) { peripheralID in
+                            NavigationLink(value: DeviceRoute(peripheralID: peripheralID, name: nil)) {
+                                Text(peripheralID.uuidString)
+                                    .font(.caption2.monospaced())
+                            }
+                        }
+                    }
+                }
                 Section("Discovered") {
                     if model.discoveries.isEmpty {
                         Text(model.isScanning ? "Scanning…" : "Not scanning")
@@ -119,6 +156,7 @@ struct ScanView: View {
         }
         .task {
             model.watchAdapter()
+            model.watchRestoredConnections()
         }
     }
 }
@@ -150,8 +188,12 @@ struct DeviceRoute: Hashable {
     let peripheralID: UUID
     let name: String?
 
+    init(peripheralID: UUID, name: String?) {
+        self.peripheralID = peripheralID
+        self.name = name
+    }
+
     init(discovery: Discovery) {
-        peripheralID = discovery.peripheralID
-        name = discovery.name
+        self.init(peripheralID: discovery.peripheralID, name: discovery.name)
     }
 }

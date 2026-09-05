@@ -24,7 +24,21 @@ final class LiveCentral: NSObject, CentralSeam, @unchecked Sendable {
     /// The same wrappers, by peripheral identifier — the key `connect(_:)` arrives with.
     private var wrappersByID: [UUID: LivePeripheral] = [:]
 
-    weak var seamDelegate: CentralSeamDelegate?
+    /// Restored peripherals that arrived before anything was listening.
+    ///
+    /// `willRestoreState` is the first callback CoreBluetooth makes, and it can land on the
+    /// library queue before `Central.init` has finished building the bridge that receives it.
+    /// Dropping it there would lose every link the app was relaunched to service — a bug that
+    /// only ever shows on a real device, after a termination, once. So it waits here instead.
+    private var pendingRestoration: (peripherals: [PeripheralSeam], wasScanning: Bool)?
+
+    weak var seamDelegate: CentralSeamDelegate? {
+        didSet {
+            guard let seamDelegate, let pending = pendingRestoration else { return }
+            pendingRestoration = nil
+            seamDelegate.centralSeam(self, willRestore: pending.peripherals, wasScanning: pending.wasScanning)
+        }
+    }
 
     var adapterState: AdapterState { AdapterState(manager.state) }
 
@@ -36,14 +50,32 @@ final class LiveCentral: NSObject, CentralSeam, @unchecked Sendable {
     ///   - queue: The library queue. CoreBluetooth delivers every callback on it, and it backs
     ///     the actors' serial executor, so callbacks and actor work are the same context.
     ///   - showPowerAlert: Whether the system may show its "Turn On Bluetooth" alert.
-    init(queue: DispatchQueue, showPowerAlert: Bool) {
+    ///   - restoreIdentifier: The key iOS files this central's state under, or `nil` to opt out
+    ///     of state restoration.
+    init(queue: DispatchQueue, showPowerAlert: Bool, restoreIdentifier: String? = nil) {
         manager = CBCentralManager(
             delegate: nil,
             queue: queue,
-            options: [CBCentralManagerOptionShowPowerAlertKey: showPowerAlert]
+            options: Self.managerOptions(showPowerAlert: showPowerAlert, restoreIdentifier: restoreIdentifier)
         )
         super.init()
         manager.delegate = self
+    }
+
+    /// The options dictionary handed to `CBCentralManager`.
+    ///
+    /// Split out from `init` so it can be tested: constructing a real manager asks the user for
+    /// Bluetooth permission and needs a radio, and the one thing worth checking here — that a
+    /// central without a restore identifier does not opt into restoration — is pure.
+    static func managerOptions(showPowerAlert: Bool, restoreIdentifier: String?) -> [String: Any] {
+        var options: [String: Any] = [CBCentralManagerOptionShowPowerAlertKey: showPowerAlert]
+        // Only when opted in: passing the key at all is what makes iOS preserve state and call
+        // `willRestoreState`, so an unconditional entry would opt every central in — including
+        // apps with no background mode, for which restoration is dead weight.
+        if let restoreIdentifier {
+            options[CBCentralManagerOptionRestoreIdentifierKey] = restoreIdentifier
+        }
+        return options
     }
 
     func scanForPeripherals(services: [CBUUID]?, allowDuplicates: Bool) {
@@ -119,14 +151,30 @@ extension LiveCentral: CBCentralManagerDelegate {
 
     // Only the classic callback is implemented. iOS 17 added a variant carrying a timestamp and
     // an `isReconnecting` flag, and calls this one whenever that variant is absent — which is
-    // what keeps the iOS 16 floor honest. The extra information is for AutoReconnect, which
-    // belongs to the background milestone.
+    // what keeps the iOS 16 floor honest. The extra information is for AutoReconnect, tracked in
+    // issue #13: it needs `#available` branching through the seam and a state-machine row CI
+    // cannot exercise at this floor.
     func centralManager(
         _ central: CBCentralManager,
         didDisconnectPeripheral peripheral: CBPeripheral,
         error: Error?
     ) {
         seamDelegate?.centralSeam(self, didDisconnect: wrapper(for: peripheral), error: error as NSError?)
+    }
+
+    func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
+        let restored = (dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral]) ?? []
+        // Through `wrapper(for:)` rather than fresh `LivePeripheral`s: that is what populates
+        // `wrappersByID`, so a later `peripheral(withID:)` — or a `connect` for the same
+        // identifier — finds this object rather than building a second one for the same link.
+        let peripherals = restored.map(wrapper(for:))
+        let wasScanning = dict[CBCentralManagerRestoredStateScanServicesKey] != nil
+
+        guard let seamDelegate else {
+            pendingRestoration = (peripherals, wasScanning)
+            return
+        }
+        seamDelegate.centralSeam(self, willRestore: peripherals, wasScanning: wasScanning)
     }
 }
 
