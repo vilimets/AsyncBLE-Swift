@@ -241,15 +241,42 @@ back on their own when the device returns. The library flushes the invalidated G
 re-walks discovery on the new link, and re-subscribes. Nothing in your code participates.
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontSize: 15px
+    lineColor: '#94a3b8'
+    labelBackgroundColor: 'transparent'
+    textColor: '#7d8998'
+    transitionLabelColor: '#7d8998'
+  htmlLabels: false
+  state:
+    htmlLabels: false
+    padding: 16
+    nodeSpacing: 100
+    rankSpacing: 95
+---
 stateDiagram-v2
+    direction TB
     [*] --> disconnected
-    disconnected  --> connecting:    connect()
-    connecting    --> connected:     link up
-    connecting    --> disconnected:  timeout / failure
-    connected     --> reconnecting:  link drops
-    connected     --> disconnected:  disconnect()
-    reconnecting  --> connected:     device returns
-    reconnecting  --> disconnected:  policy gave up
+    disconnected --> connecting: connect()
+    connecting --> connected: link up
+    connecting --> disconnected: timeout / failure
+    connected --> reconnecting: link drops
+    connected --> disconnected: disconnect()
+    reconnecting --> connected: device returns
+    reconnecting --> disconnected: policy gave up
+
+    classDef idle    fill:#e2e8f0,stroke:#94a3b8,stroke-width:1.5px,color:#1e293b
+    classDef working fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+    classDef good    fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+    classDef waiting fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#1e3a8a
+
+    class disconnected idle
+    class connecting working
+    class connected good
+    class reconnecting waiting
 ```
 
 A user-initiated `disconnect()` is a *different transition* from a dropped link, so it never
